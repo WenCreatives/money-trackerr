@@ -120,6 +120,12 @@
           <div class="card dashSide">
             <div class="sectionTitle">Breakdown (by category)</div>
             <div id="breakdownList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Top 3 Overspending</div>
+            <div id="topSpendList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Budget Alerts</div>
+            <div id="budgetAlertList" class="list"></div>
           </div>
         </div>
       </section>
@@ -173,6 +179,35 @@
           </form>
 
           <div id="catList" class="list"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Suggested Categories</div>
+          <div class="small">One click to add common categories.</div>
+          <div id="suggestCatRow" class="suggestRow"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Recurring Monthly Transactions</div>
+          <div class="small">Create templates once — they can be applied automatically when you add a month.</div>
+
+          <form id="recurringForm" class="form" style="grid-template-columns: 2fr 1fr 1fr 2fr auto;">
+            <select id="recCat" class="select" required></select>
+            <input id="recAmount" class="input" type="number" min="0" step="1" placeholder="Amount">
+            <input id="recDay" class="input" type="number" min="1" max="31" step="1" value="1" required>
+            <input id="recNote" class="input" placeholder="Note (e.g. Rent / Salary)">
+            <button class="btn" type="submit">Add</button>
+          </form>
+
+          <label class="checkRow" style="margin-top:10px;">
+            <input id="recVariable" type="checkbox">
+            <span>Variable amount (enter when applying)</span>
+          </label>
+
+          <div class="sectionTitle" style="margin-top:14px;">Suggested Recurring</div>
+          <div id="suggestRecRow" class="suggestRow"></div>
+
+          <div id="recurringList" class="list"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Monthly Budgets (Expenses)</div>
+          <div class="small">Budgets are per selected month. Alerts show at 80% and 100%.</div>
+          <div id="budgetList" class="list"></div>
         </div>
       </section>
     </main>
@@ -197,6 +232,100 @@
     </div>
   </div>
 
+  <!-- MODAL: Add Month -->
+  <div id="monthModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Add Month</div>
+        <button id="closeMonthModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" style="margin-top:8px;">Choose a month (no overlaps — each month is independent).</div>
+
+      <form id="monthForm" class="form" style="grid-template-columns: 1fr auto; margin-top:12px;">
+        <input id="monthInput" class="input" type="month" required />
+        <button class="btn" type="submit">Add</button>
+      </form>
+
+      <label class="checkRow" style="margin-top:10px;">
+        <input id="copyBudgetsCheck" type="checkbox">
+        <span>Copy budgets from previous month</span>
+      </label>
+      <div class="small" id="copyBudgetsHint" style="margin-top:6px; display:none;"></div>
+
+      <label class="checkRow" style="margin-top:10px;">
+        <input id="applyRecurringCheck" type="checkbox" checked>
+        <span>Apply recurring transactions (salary/rent/subscriptions)</span>
+      </label>
+      <div class="small" id="applyRecurringHint" style="margin-top:6px;"></div>
+
+      <div id="applyRecurringBox" class="card" style="margin-top:12px;">
+        <div class="sectionTitle">Recurring to apply</div>
+        <div class="small">Edit amounts before applying. Variable templates require you to enter an amount.</div>
+        <div class="filters" style="margin-top:10px;">
+          <button id="recFilterAll" class="pill active" type="button">All</button>
+          <button id="recFilterIncome" class="pill" type="button">Income only</button>
+          <button id="recFilterExpense" class="pill" type="button">Expense only</button>
+        </div>
+        <div class="rowBetween" style="margin-top:10px;">
+          <div class="small">Select templates to apply</div>
+          <div style="display:flex;gap:10px;">
+            <button id="recSelectAll" class="btn btnGhost btnSmall" type="button">Select all</button>
+            <button id="recSelectNone" class="btn btnGhost btnSmall" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="applyRecurringList" class="list"></div>
+      </div>
+
+      <div class="small hint">Tip: you can jump between months using the picker.</div>
+    </div>
+  </div>
+
+  <!-- MODAL: Delete Month -->
+  <div id="deleteMonthModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Delete Month</div>
+        <button id="closeDeleteMonthModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" style="margin-top:12px; color: #ffd6d6;">
+        <b>Warning:</b> This will permanently delete all transactions, goals, and data for <span id="delMonthLabel">—</span>. This action cannot be undone.
+      </div>
+
+      <div class="small" style="margin-top:12px;">
+        Type <b id="delMonthNeed">—</b> to confirm:
+      </div>
+
+      <input id="delMonthInput" class="input" placeholder="YYYY-MM" autocomplete="off" style="margin-top:8px;">
+
+      <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end;">
+        <button id="cancelDeleteMonth" class="btn btnGhost">Cancel</button>
+        <button id="confirmDeleteMonth" class="btn" style="background: linear-gradient(135deg, rgba(224,32,32,.95), rgba(232,40,136,.9));">Yes, delete</button>
+      </div>
+    </div>
+  </div>
+
   <script src="./app.js"></script>
+
+  <!-- Toast notifications -->
+  <div id="toastHost" class="toastHost"></div>
+
+  <!-- Reusable Confirm Modal (replaces browser confirm) -->
+  <div id="confirmModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle" id="confirmTitle">Confirm</div>
+        <button id="confirmClose" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" id="confirmMessage" style="margin-top:10px;"></div>
+
+      <div class="rowBetween" style="margin-top:14px;">
+        <button id="confirmCancel" class="btn btnGhost">Cancel</button>
+        <button id="confirmOk" class="btn btnDangerSolid">Yes</button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>
