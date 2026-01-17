@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Monthly Money Tracker</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <div class="brand">
+        <div class="logo"></div>
+        <div>
+          <div class="title">Monthly Dashboard</div>
+          <div class="subtitle">One month at a time • clean insights</div>
+        </div>
+      </div>
+
+      <div class="monthRow">
+        <select id="monthPicker" class="select"></select>
+        <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="transactions">Transactions</button>
+      <button class="tab" data-tab="categories">Categories</button>
+    </nav>
+
+    <main class="content">
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="panel show">
+        <div class="grid2">
+          <div class="card">
+            <div class="cardHead">
+              <span>Total Income</span>
+              <span class="chip chipGreen">IN</span>
+            </div>
+            <div class="kpi" id="kpiIncome">Ksh0</div>
+            <div class="small">Money coming in</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Total Expenses</span>
+              <span class="chip chipPink">OUT</span>
+            </div>
+            <div class="kpi" id="kpiExpenses">Ksh0</div>
+            <div class="small">Money going out</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Balance</span>
+              <span class="chip chipTeal">LEFT</span>
+            </div>
+            <div class="kpi" id="kpiBalance">Ksh0</div>
+            <div class="small">Income - Expenses</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Highest Spend</span>
+              <span class="chip chipPurple">TOP</span>
+            </div>
+            <div class="kpi" id="kpiTop">—</div>
+            <div class="small" id="kpiTopSub">No expense data yet</div>
+          </div>
+        </div>
+
+        <div class="dashGrid">
+          <div class="card chartCard dashMain">
+            <div class="rowBetween">
+              <div>
+                <div class="sectionTitle">Income vs Expenses</div>
+                <div class="small">Switch chart mode to reduce congestion</div>
+              </div>
+              <div class="toggle">
+                <button id="quickIncomeBtn" class="btn btnSmall">+ Income</button>
+                <button id="quickExpenseBtn" class="btn btnSmall btnGhost">+ Expense</button>
+                <button id="pieBtn" class="btn btnSmall btnActive">Pie</button>
+                <button id="barBtn" class="btn btnSmall">Bar</button>
+              </div>
+            </div>
+
+            <div class="chartWrap">
+              <canvas id="mainChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card dashSide">
+            <div class="sectionTitle">Breakdown (by category)</div>
+            <div id="breakdownList" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRANSACTIONS -->
+      <section id="transactions" class="panel">
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Transactions</div>
+              <div class="small">Recorded for the selected month only</div>
+            </div>
+            <button id="addTxBtn" class="btn">+ Add</button>
+          </div>
+
+          <div class="filters">
+            <button class="pill active" data-filter="all">All</button>
+            <button class="pill" data-filter="income">Income</button>
+            <button class="pill" data-filter="expense">Expense</button>
+          </div>
+
+          <div id="txList" class="list"></div>
+        </div>
+      </section>
+
+      <!-- CATEGORIES -->
+      <section id="categories" class="panel">
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Categories</div>
+              <div class="small">Custom income + expense categories</div>
+            </div>
+          </div>
+
+          <form id="catForm" class="form">
+            <input id="catName" class="input" placeholder="Category name (e.g. Transport)" required />
+            <select id="catType" class="select">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+            <select id="catColor" class="select">
+              <option value="#08F850">Neon Green</option>
+              <option value="#58D8B0">Teal</option>
+              <option value="#E82888">Pink</option>
+              <option value="#7028F8">Purple</option>
+              <option value="#F0A810">Amber</option>
+              <option value="#E02020">Red</option>
+            </select>
+            <button class="btn" type="submit">Add Category</button>
+          </form>
+
+          <div id="catList" class="list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: Add Transaction -->
+  <div id="modal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Add Transaction</div>
+        <button id="closeModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <form id="txForm" class="form">
+        <select id="txCategory" class="select" required></select>
+        <input id="txAmount" class="input" type="number" min="1" step="1" placeholder="Amount (Ksh)" required />
+        <input id="txDate" class="input" type="date" required />
+        <input id="txNote" class="input" placeholder="Note (optional)" />
+        <button class="btn" type="submit">Save</button>
+      </form>
+      <div class="small hint">Tip: Expenses reduce balance; income increases it.</div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>
