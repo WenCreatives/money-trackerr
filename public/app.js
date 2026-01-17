@@ -19,7 +19,13 @@ let state = {
   recurringTemplates: [],
   recApplyFilter: "all", // all | income | expense
   recApplySelected: {}, // { [templateId]: true/false }
+  editTxId: null,
+  undoTx: null,
+  trends: [],
+  trendMode: "ie", // "ie" or "bal"
 };
+
+let trendChart = null;
 
 const ADD_MONTH_VALUE = "__add_month__";
 
@@ -45,6 +51,37 @@ function toast(message, type = "ok", title = null, ms = 2600) {
     t.classList.remove("show");
     window.setTimeout(() => t.remove(), 200);
   }, ms);
+}
+
+function toastAction(message, type, title, actionText, onAction, ms = 4500) {
+  const host = document.getElementById("toastHost");
+  if (!host) return;
+
+  const t = document.createElement("div");
+  t.className = `toast ${type || "ok"}`;
+
+  t.innerHTML = `
+    <div class="toastTitle">${title || "Done"}</div>
+    <div class="toastMsg">${String(message)}</div>
+    <div class="toastActionRow">
+      <button class="toastBtn" type="button">${actionText || "Undo"}</button>
+    </div>
+  `;
+
+  host.appendChild(t);
+  requestAnimationFrame(() => t.classList.add("show"));
+
+  const btn = t.querySelector("button");
+  const kill = () => {
+    t.classList.remove("show");
+    setTimeout(() => t.remove(), 200);
+  };
+
+  btn.addEventListener("click", () => {
+    try { onAction?.(); } finally { kill(); }
+  });
+
+  setTimeout(kill, ms);
 }
 
 // ---- Doughnut outside labels + leader lines (Chart.js plugin) ----
@@ -439,6 +476,62 @@ function renderBudgetAlerts() {
   }).join("");
 }
 
+function renderBudgetSnapshot(){
+  const el = document.getElementById("budgetSnapshot");
+  if (!el) return;
+
+  const expenseCats = (state.categories || []).filter(c => c.type === "expense");
+  const budgetMap = getBudgetMap();           // you already have this
+  const spentMap  = getExpenseSumsByCategoryId(); // you already have this
+
+  const rows = expenseCats.map(c => {
+    const budget = Number(budgetMap[c.id] || 0);
+    const spent  = Number(spentMap[c.id] || 0);
+    const ratio  = budget > 0 ? spent / budget : 0;
+    return { ...c, budget, spent, ratio };
+  }).filter(r => r.budget > 0)
+    .sort((a,b) => b.ratio - a.ratio)
+    .slice(0, 4);
+
+  if (!rows.length){
+    el.innerHTML = `<div class="small">Set some budgets to see progress here.</div>`;
+    return;
+  }
+
+  el.innerHTML = rows.map(r => {
+    const pct = Math.round(r.ratio * 100);
+    const chip = r.ratio >= 1
+      ? `<span class="chip badgeOver">OVER</span>`
+      : r.ratio >= 0.8
+        ? `<span class="chip badgeWarn">${pct}%</span>`
+        : `<span class="chip chipTeal">${pct}%</span>`;
+
+    // Helper to convert hex to rgba
+    const hexToRgba = (hex, alpha) => {
+      const r = parseInt(hex.slice(1, 3), 16);
+      const g = parseInt(hex.slice(3, 5), 16);
+      const b = parseInt(hex.slice(5, 7), 16);
+      return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+    };
+
+    return `
+      <div class="item">
+        <div class="rowBetween">
+          <div class="itemLeft">
+            <div class="itemTitle">${r.name} ${chip}</div>
+            <div class="itemSub">Spent ${fmtKsh(r.spent)} of ${fmtKsh(r.budget)}</div>
+          </div>
+          <span class="dot" style="background:${r.color}"></span>
+        </div>
+
+        <div class="miniProgress" style="margin-top:12px;">
+          <div class="miniBar" style="width:${Math.min(100, pct)}%; background:${hexToRgba(r.color, .9)}"></div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 async function loadMonths() {
   const res = await apiGet("/months");
   const months = (res.months || []).slice().sort().reverse(); // newest first
@@ -485,6 +578,7 @@ async function loadCategories() {
   renderTxCategoryOptions();
   renderRecurringCategoryOptions();
   renderSuggestedCategories();
+  populateTxCategoryFilter();
 }
 
 async function loadTransactions() {
@@ -917,9 +1011,9 @@ function renderChart(summary) {
     const colors = ["rgba(8,248,80,.95)", "rgba(232,40,136,.95)"];
 
     const doughnutOpts = {
-      responsive: true,
+    responsive: true,
       maintainAspectRatio: false, // ✅ allow CSS square to control size
-      devicePixelRatio: window.devicePixelRatio || 1,
+    devicePixelRatio: window.devicePixelRatio || 1,
       cutout: "72%", // bigger hole = thinner ring
       radius: "92%", // a bit smaller so it breathes
       spacing: 3, // spacing between slices
@@ -929,9 +1023,9 @@ function renderChart(summary) {
         padding: { top: 20, bottom: 20, left: 90, right: 90 }
       },
 
-      plugins: {
+    plugins: {
         legend: { display: false }, // hide legend since we have breakdown list
-        tooltip: {
+      tooltip: {
           callbacks: {
             label: (ctx) => {
               const total = values.reduce((a, b) => a + (b || 0), 0) || 0;
@@ -964,9 +1058,9 @@ function renderChart(summary) {
         backgroundColor: colors,
         borderWidth: 0
       }]
-    };
+  };
 
-    state.chart = new Chart(ctx, {
+  state.chart = new Chart(ctx, {
       type: "doughnut",
       data: doughnutData,
       options: doughnutOpts,
@@ -998,17 +1092,61 @@ function renderChart(summary) {
   }
 }
 
+function populateTxCategoryFilter(){
+  const sel = document.getElementById("txCatFilter");
+  if (!sel) return;
+
+  const cur = sel.value || "";
+  const cats = state.categories || [];
+
+  sel.innerHTML = `<option value="">All categories</option>` + cats
+    .map(c => `<option value="${c.id}">${c.name} (${c.type})</option>`)
+    .join("");
+
+  sel.value = cur;
+}
+
+function getFilteredTransactions(){
+  const q = (document.getElementById("txSearch")?.value || "").trim().toLowerCase();
+  const catId = Number(document.getElementById("txCatFilter")?.value || 0);
+  const min = Number(document.getElementById("txMin")?.value || 0);
+  const maxRaw = document.getElementById("txMax")?.value;
+  const max = maxRaw === "" || maxRaw == null ? Infinity : Number(maxRaw);
+  const from = document.getElementById("txFrom")?.value || "";
+  const to = document.getElementById("txTo")?.value || "";
+
+  return (state.transactions || []).filter(t => {
+    if (catId && Number(t.category_id) !== catId) return false;
+
+    const amt = Number(t.amount || 0);
+    if (amt < min) return false;
+    if (amt > max) return false;
+
+    const d = t.tdate || t.date || "";
+    if (from && d < from) return false;
+    if (to && d > to) return false;
+
+    if (q) {
+      const hay = `${t.category_name || ""} ${t.note || ""}`.toLowerCase();
+      if (!hay.includes(q)) return false;
+    }
+    return true;
+  });
+}
+
 function renderTransactions() {
   const el = $("#txList");
   const filter = state.filter;
 
-  const tx = state.transactions.filter(t => {
-    if (filter === "all") return true;
-    return t.category_type === filter;
-  });
+  let tx = getFilteredTransactions();
+
+  // Apply type filter (all/income/expense)
+  if (filter !== "all") {
+    tx = tx.filter(t => t.category_type === filter);
+  }
 
   if (!tx.length) {
-    el.innerHTML = `<div class="small">No transactions yet for ${state.month}. Tap “+ Add”.</div>`;
+    el.innerHTML = `<div class="small">No transactions match your filters.</div>`;
     return;
   }
 
@@ -1017,38 +1155,18 @@ function renderTransactions() {
     const amtColor = isIncome ? "#08F850" : "#E82888";
     const sign = isIncome ? "+" : "-";
     return `
-      <div class="item">
+      <div class="item" data-tx-open="${t.id}">
         <div class="itemLeft">
           <div class="itemTitle">${t.category_name} <span style="color:${t.category_color}">●</span></div>
           <div class="itemSub">${t.tdate}${t.note ? ` • ${escapeHtml(t.note)}` : ""}</div>
         </div>
         <div style="display:flex; gap:8px; align-items:center;">
           <div class="itemAmt" style="color:${amtColor}">${sign}${fmtKsh(t.amount)}</div>
-          <button class="btn btnGhost btnSmall" data-del="${t.id}">Del</button>
+          <button class="btn btnGhost btnSmall" data-tx-del="${t.id}" type="button">Del</button>
         </div>
       </div>
     `;
   }).join("");
-
-  $$("button[data-del]").forEach(btn => {
-    btn.addEventListener("click", async () => {
-      const id = btn.getAttribute("data-del");
-      const ok = await confirmDialog({
-        title: "Delete transaction",
-        message: "This will permanently remove this transaction.",
-        okText: "Delete",
-        danger: true
-      });
-      if (!ok) return;
-      try {
-        await apiSend(`/transactions/${id}`, "DELETE");
-        await refreshMonth();
-        toast("Transaction deleted", "ok");
-      } catch (e) {
-        toast(e?.message || "Request failed", "err");
-      }
-    });
-  });
 }
 
 function renderCategories() {
@@ -1107,10 +1225,39 @@ function renderTxCategoryOptions() {
 function showTab(name) {
   $$(".tab").forEach(t => t.classList.toggle("active", t.dataset.tab === name));
   $$(".panel").forEach(p => p.classList.toggle("show", p.id === name));
+
+  // Load trends when trends tab is opened
+  if (name === "trends") {
+    openTrends();
+  }
 }
 
 function openModal() { $("#modal").classList.remove("hidden"); }
 function closeModal() { $("#modal").classList.add("hidden"); }
+
+function openTxModalForAdd() {
+  state.editTxId = null;
+  $("#txModalTitle").textContent = "Add Transaction";
+  $("#txSubmitBtn").textContent = "Save";
+  $("#txCancelEdit").style.display = "none";
+  openModal(); // your existing tx modal open
+}
+
+function openTxModalForEdit(tx) {
+  state.editTxId = tx.id;
+
+  $("#txModalTitle").textContent = "Edit Transaction";
+  $("#txSubmitBtn").textContent = "Save changes";
+  $("#txCancelEdit").style.display = "inline-flex";
+
+  // fill fields (adjust ids to your form inputs)
+  $("#txCategory").value = String(tx.category_id);
+  $("#txAmount").value = String(tx.amount);
+  $("#txDate").value = tx.tdate;
+  $("#txNote").value = tx.note || "";
+
+  openModal();
+}
 
 function openMonthModal() {
   $("#monthModal").classList.remove("hidden");
@@ -1162,6 +1309,166 @@ function escapeHtml(str) {
     .replaceAll("'","&#039;");
 }
 
+async function loadTrends(n = 6){
+  const res = await apiGet(`/trends?months=${n}`);
+  state.trends = res.months || [];
+}
+
+function renderTrends(){
+  const labels = state.trends.map(r => r.month_key);
+  const income = state.trends.map(r => Number(r.income || 0));
+  const expenses = state.trends.map(r => Number(r.expenses || 0));
+  const balance = state.trends.map((r,i) => income[i] - expenses[i]);
+  const goal = state.trends.map(r => Number(r.savings_goal || 0));
+
+  // Chart
+  if (trendChart) trendChart.destroy();
+
+  const ctx = document.getElementById("trendChart");
+  if (!ctx) return;
+
+  const isIE = state.trendMode === "ie";
+
+  trendChart = new Chart(ctx, {
+    type: "line",
+    data: {
+      labels,
+      datasets: isIE ? [
+        { label: "Income", data: income, tension: 0.25, borderColor: "rgba(8,248,80,.95)", backgroundColor: "rgba(8,248,80,.1)" },
+        { label: "Expenses", data: expenses, tension: 0.25, borderColor: "rgba(232,40,136,.95)", backgroundColor: "rgba(232,40,136,.1)" }
+      ] : [
+        { label: "Balance", data: balance, tension: 0.25, borderColor: "rgba(112,40,248,.95)", backgroundColor: "rgba(112,40,248,.1)" },
+        { label: "Savings goal", data: goal, tension: 0.25, borderColor: "rgba(240,168,16,.95)", backgroundColor: "rgba(240,168,16,.1)", borderDash: [5, 5] }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      devicePixelRatio: window.devicePixelRatio || 1,
+      plugins: {
+        legend: { display: true, labels: { color: "#F8F8F8" } },
+        tooltip: {
+          callbacks: {
+            label: (ctx) => `${ctx.dataset.label}: ${fmtKsh(ctx.raw || 0)}`
+          }
+        }
+      },
+      scales: {
+        x: { ticks: { color: "#BFC3E6" }, grid: { color: "rgba(191,195,230,.12)" } },
+        y: { ticks: { color: "#BFC3E6" }, grid: { color: "rgba(191,195,230,.12)" } }
+      }
+    }
+  });
+
+  // Table
+  const t = document.getElementById("trendTable");
+  if (!t) return;
+
+  t.innerHTML = state.trends.map((r, i) => {
+    const bal = balance[i];
+    const hitGoal = bal >= (r.savings_goal || 0) && (r.savings_goal || 0) > 0;
+
+    const chip = (r.savings_goal || 0) === 0
+      ? `<span class="chip chipPurple">No goal</span>`
+      : hitGoal
+        ? `<span class="chip chipGreen">Goal hit</span>`
+        : `<span class="chip badgeWarn">Below goal</span>`;
+
+    const over = expenses[i] > income[i] ? `<span class="chip badgeOver">Overspent</span>` : "";
+
+    return `
+      <div class="item trendRow" data-trend-month="${r.month_key}">
+        <div class="itemLeft">
+          <div class="itemTitle">${r.month_key} ${chip} ${over}</div>
+          <div class="itemSub">
+            Income ${fmtKsh(income[i])} • Expenses ${fmtKsh(expenses[i])} • Balance ${fmtKsh(bal)}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+async function openTrends(){
+  await loadTrends(12);
+  renderTrends();
+}
+
+function exportTrendsCSV(){
+  window.location.href = `/api/trends/export?months=12`;
+  toast("Downloading trends CSV…", "ok");
+}
+
+async function exportMonthJSON(){
+  const mk = state.month;
+  try{
+    const data = await apiGet(`/month/export?month=${encodeURIComponent(mk)}&format=json`);
+    const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `money-tracker-${mk}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+
+    toast("Exported JSON", "ok");
+  }catch(err){
+    toast(err?.message || "Export failed", "err");
+  }
+}
+
+function exportMonthCSV(){
+  const mk = state.month;
+  window.location.href = `/api/month/export?month=${encodeURIComponent(mk)}&format=csv`;
+  // CSV download triggers via browser, so no need for toast (file will download)
+}
+
+async function importMonthJSONFile(file){
+  try{
+    const text = await file.text();
+    const payload = JSON.parse(text);
+
+    // First try without overwrite
+    try{
+      await apiSend("/month/import", "POST", { payload, overwrite: false });
+    }catch(e){
+      // If server says conflict, ask for overwrite (if confirmDialog exists)
+      const msg = e?.message || "";
+      if (msg.includes("409") || msg.toLowerCase().includes("overwrite")) {
+        if (typeof confirmDialog === "function") {
+          const ok = await confirmDialog({
+            title: "Overwrite month data?",
+            message: `Month ${payload.month_key} already has data. Overwrite it with the imported file?`,
+            okText: "Overwrite",
+            danger: true
+          });
+          if (!ok) return;
+          await apiSend("/month/import", "POST", { payload, overwrite: true });
+        } else {
+          toast("Month already has data. Add confirmDialog to allow overwrite, or import into a new month.", "warn");
+          return;
+        }
+      } else {
+        throw e;
+      }
+    }
+
+    toast(`Imported ${payload.month_key}`, "ok");
+
+    // Switch to imported month
+    await loadMonths();
+    state.month = payload.month_key;
+    $("#monthPicker").value = payload.month_key;
+
+    await refreshMonth();
+  }catch(err){
+    toast(err?.message || "Import failed", "err");
+  }
+}
+
 async function refreshMonth() {
   await loadTransactions();
   await loadBudgets();
@@ -1170,6 +1477,8 @@ async function refreshMonth() {
   // these depend on transactions + budgets + categories
   renderBudgets();
   renderBudgetAlerts();
+  renderBudgetSnapshot();
+  renderTransactions();
 }
 
 function wireUI() {
@@ -1217,19 +1526,19 @@ function wireUI() {
 
   $("#addTxBtn").addEventListener("click", () => {
     $("#txDate").value = dateToday();
-    openModal();
+    openTxModalForAdd();
   });
 
   $("#quickIncomeBtn").addEventListener("click", () => {
     showTab("transactions");
     $("#txDate").value = dateToday();
-    openModal();
+    openTxModalForAdd();
   });
 
   $("#quickExpenseBtn").addEventListener("click", () => {
     showTab("transactions");
     $("#txDate").value = dateToday();
-    openModal();
+    openTxModalForAdd();
   });
 
   $("#closeModal").addEventListener("click", closeModal);
@@ -1377,6 +1686,20 @@ function wireUI() {
 
   $("#txForm").addEventListener("submit", async (e) => {
     e.preventDefault();
+
+    try {
+      if (state.editTxId) {
+        // EDIT - use tdate for PUT
+        const payload = {
+          category_id: Number($("#txCategory").value),
+          amount: Number($("#txAmount").value),
+          tdate: $("#txDate").value,
+          note: $("#txNote").value || ""
+        };
+        await apiSend(`/transactions/${state.editTxId}`, "PUT", payload);
+        toast("Transaction updated", "ok");
+      } else {
+        // ADD - use date for POST
     const payload = {
       month_key: state.month,
       category_id: Number($("#txCategory").value),
@@ -1384,15 +1707,18 @@ function wireUI() {
       date: $("#txDate").value,
       note: $("#txNote").value || ""
     };
-    try {
       await apiSend("/transactions", "POST", payload);
+        toast("Transaction added", "ok");
+      }
+
+      state.editTxId = null;
       $("#txAmount").value = "";
       $("#txNote").value = "";
       closeModal();
       await refreshMonth();
       showTab("transactions");
     } catch (err) {
-      toast(err.message, "err");
+      toast(err?.message || "Save failed", "err");
     }
   });
 
@@ -1539,6 +1865,7 @@ function wireUI() {
         await loadBudgets();
         renderBudgets();
         renderBudgetAlerts();
+        renderBudgetSnapshot();
       } catch (err) {
         toast(err.message, "err");
       }
@@ -1551,10 +1878,141 @@ function wireUI() {
         await loadBudgets();
         renderBudgets();
         renderBudgetAlerts();
+        renderBudgetSnapshot();
       } catch (err) {
         toast(err.message, "err");
       }
     }
+  });
+
+  $("#txCancelEdit").addEventListener("click", () => {
+    state.editTxId = null;
+    closeModal();
+  });
+
+  // Transaction edit + delete with undo
+  document.addEventListener("click", async (e) => {
+    // Delete (don't trigger open)
+    const delBtn = e.target.closest?.("[data-tx-del]");
+    if (delBtn) {
+      e.stopPropagation();
+      const id = Number(delBtn.getAttribute("data-tx-del"));
+      const tx = (state.transactions || []).find(x => Number(x.id) === id);
+      if (!tx) return;
+
+      try {
+        // Optimistic UI: remove immediately
+        state.transactions = (state.transactions || []).filter(x => Number(x.id) !== id);
+        renderTransactions(); // refresh list immediately
+
+        await apiSend(`/transactions/${id}`, "DELETE");
+
+        // store for undo
+        state.undoTx = { ...tx };
+
+        toastAction(
+          "Transaction deleted",
+          "warn",
+          "Deleted",
+          "Undo",
+          async () => {
+            try {
+              await apiSend("/transactions", "POST", {
+                month_key: state.month,
+                category_id: state.undoTx.category_id,
+                amount: state.undoTx.amount,
+                date: state.undoTx.tdate,
+                note: state.undoTx.note || ""
+              });
+              toast("Restored", "ok");
+              await refreshMonth();
+            } catch (err) {
+              toast(err?.message || "Undo failed", "err");
+            } finally {
+              state.undoTx = null;
+            }
+          }
+        );
+
+        await refreshMonth(); // ensure totals/charts updated
+      } catch (err) {
+        toast(err?.message || "Delete failed", "err");
+        await refreshMonth(); // re-sync UI if something went wrong
+      }
+      return;
+    }
+
+    // Open to edit (click row)
+    const row = e.target.closest?.("[data-tx-open]");
+    if (!row) return;
+    const id = Number(row.getAttribute("data-tx-open"));
+    const tx = (state.transactions || []).find(x => Number(x.id) === id);
+    if (!tx) return;
+
+    openTxModalForEdit(tx);
+  });
+
+  // Transaction filter events
+  ["txSearch","txCatFilter","txMin","txMax","txFrom","txTo"].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) {
+      el.addEventListener("input", () => renderTransactions());
+      el.addEventListener("change", () => renderTransactions());
+    }
+  });
+
+  document.getElementById("txClearFilters")?.addEventListener("click", () => {
+    ["txSearch","txMin","txMax","txFrom","txTo"].forEach(id => {
+      const el = document.getElementById(id);
+      if (el) el.value = "";
+    });
+    const sel = document.getElementById("txCatFilter");
+    if (sel) sel.value = "";
+    renderTransactions();
+  });
+
+  // Export/Import buttons
+  $("#btnExportJson")?.addEventListener("click", exportMonthJSON);
+  $("#btnExportCsv")?.addEventListener("click", exportMonthCSV);
+
+  $("#btnImportJson")?.addEventListener("click", () => $("#importJsonFile").click());
+  $("#importJsonFile")?.addEventListener("change", async (e) => {
+    const f = e.target.files?.[0];
+    if (!f) return;
+    await importMonthJSONFile(f);
+    e.target.value = ""; // allow re-import same file later
+  });
+
+  // Trends mode toggle
+  document.getElementById("trendModeIE")?.addEventListener("click", () => {
+    state.trendMode = "ie";
+    document.getElementById("trendModeIE").classList.add("active");
+    document.getElementById("trendModeBal").classList.remove("active");
+    renderTrends();
+  });
+
+  document.getElementById("trendModeBal")?.addEventListener("click", () => {
+    state.trendMode = "bal";
+    document.getElementById("trendModeBal").classList.add("active");
+    document.getElementById("trendModeIE").classList.remove("active");
+    renderTrends();
+  });
+
+  $("#btnTrendExportCsv")?.addEventListener("click", exportTrendsCSV);
+
+  // Click a month row → jump to month (trends table)
+  // This is separate from transaction row clicks, so no conflict
+  document.addEventListener("click", async (e) => {
+    const row = e.target.closest?.("[data-trend-month]");
+    if (!row) return;
+    e.stopPropagation();
+    const mk = row.getAttribute("data-trend-month");
+
+    state.month = mk;
+    document.getElementById("monthPicker").value = mk;
+    toast(`Opened ${mk}`, "ok");
+    await refreshMonth(); // updates dashboard for that month
+    showTab("dashboard"); // switch to dashboard to see the month
   });
 }
 

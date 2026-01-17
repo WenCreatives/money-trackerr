@@ -20,6 +20,10 @@
 
       <div class="monthRow">
         <select id="monthPicker" class="select"></select>
+        <button id="btnExportJson" class="btn btnGhost btnSmall" type="button">Export JSON</button>
+        <button id="btnExportCsv" class="btn btnGhost btnSmall" type="button">Export CSV</button>
+        <button id="btnImportJson" class="btn btnGhost btnSmall" type="button">Import JSON</button>
+        <input id="importJsonFile" type="file" accept="application/json" style="display:none;">
         <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
       </div>
     </header>
@@ -28,6 +32,7 @@
       <button class="tab active" data-tab="dashboard">Dashboard</button>
       <button class="tab" data-tab="transactions">Transactions</button>
       <button class="tab" data-tab="categories">Categories</button>
+      <button class="tab" data-tab="trends" id="tabTrends">Trends</button>
     </nav>
 
     <main class="content">
@@ -126,6 +131,39 @@
 
             <div class="sectionTitle" style="margin-top:14px;">Budget Alerts</div>
             <div id="budgetAlertList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Budgets at a glance</div>
+            <div id="budgetSnapshot" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRENDS -->
+      <section id="trends" class="panel">
+        <div class="grid2">
+          <div class="card">
+            <div class="rowBetween">
+              <div>
+                <div class="sectionTitle">12-Month Trend</div>
+                <div class="small">Income vs Expenses + Balance + Goal</div>
+              </div>
+
+              <div style="display:flex; gap:10px;">
+                <button id="trendModeIE" class="pill active" type="button">Income/Expenses</button>
+                <button id="trendModeBal" class="pill" type="button">Balance/Goal</button>
+                <button id="btnTrendExportCsv" class="btn btnGhost btnSmall" type="button">Export CSV</button>
+              </div>
+            </div>
+
+            <div class="chartWrap" style="margin-top:12px;">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sectionTitle">Summary</div>
+            <div class="small">Click a month row to jump to it.</div>
+            <div id="trendTable" class="list" style="margin-top:12px;"></div>
           </div>
         </div>
       </section>
@@ -145,6 +183,18 @@
             <button class="pill active" data-filter="all">All</button>
             <button class="pill" data-filter="income">Income</button>
             <button class="pill" data-filter="expense">Expense</button>
+          </div>
+
+          <div class="filters" style="flex-wrap:wrap; margin-top:12px;">
+            <input id="txSearch" class="input" placeholder="Search note or category…" style="flex:2; min-width:220px;">
+            <select id="txCatFilter" class="select" style="flex:1; min-width:180px;">
+              <option value="">All categories</option>
+            </select>
+            <input id="txMin" class="input" type="number" min="0" placeholder="Min" style="width:120px;">
+            <input id="txMax" class="input" type="number" min="0" placeholder="Max" style="width:120px;">
+            <input id="txFrom" class="input" type="date" style="width:160px;">
+            <input id="txTo" class="input" type="date" style="width:160px;">
+            <button id="txClearFilters" class="btn btnGhost btnSmall" type="button">Clear</button>
           </div>
 
           <div id="txList" class="list"></div>
@@ -217,7 +267,7 @@
   <div id="modal" class="modal hidden">
     <div class="modalCard">
       <div class="rowBetween">
-        <div class="sectionTitle">Add Transaction</div>
+        <div class="sectionTitle" id="txModalTitle">Add Transaction</div>
         <button id="closeModal" class="btn btnGhost btnSmall">✕</button>
       </div>
 
@@ -226,7 +276,10 @@
         <input id="txAmount" class="input" type="number" min="1" step="1" placeholder="Amount (Ksh)" required />
         <input id="txDate" class="input" type="date" required />
         <input id="txNote" class="input" placeholder="Note (optional)" />
-        <button class="btn" type="submit">Save</button>
+        <div style="display:flex; gap:10px;">
+          <button id="txCancelEdit" class="btn btnGhost" type="button" style="display:none;">Cancel edit</button>
+          <button id="txSubmitBtn" class="btn" type="submit">Save</button>
+        </div>
       </form>
       <div class="small hint">Tip: Expenses reduce balance; income increases it.</div>
     </div>

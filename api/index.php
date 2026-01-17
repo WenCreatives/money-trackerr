@@ -22,6 +22,16 @@ function err(string $msg, int $code = 400): void {
   exit;
 }
 
+function send_csv($filename, $rows) {
+  header('Content-Type: text/csv; charset=utf-8');
+  header('Content-Disposition: attachment; filename="'.$filename.'"');
+  $out = fopen('php://output', 'w');
+
+  foreach ($rows as $r) fputcsv($out, $r);
+  fclose($out);
+  exit;
+}
+
 function path_no_api_prefix(string $path): string {
   // if served via /public/api/index.php, REQUEST_URI includes /api/...
   if (str_starts_with($path, '/api')) return substr($path, 4) ?: '/';
@@ -230,6 +240,34 @@ if ($path === '/transactions' && $method === 'POST') {
   $st->execute([$mk,$catId,$amount,$date,$note]);
 
   ok(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+}
+
+// PUT /api/transactions/{id}
+if (preg_match('#^/transactions/(\d+)$#', $path, $m) && $method === 'PUT') {
+  $id = (int)$m[1];
+  $b = json_in();
+
+  $catId = (int)($b['category_id'] ?? 0);
+  $amt   = (int)($b['amount'] ?? 0);
+  $tdate = trim((string)($b['tdate'] ?? ''));
+  $note  = (string)($b['note'] ?? '');
+
+  if ($catId <= 0) err('category_id required');
+  if ($amt <= 0) err('amount must be > 0');
+  if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $tdate)) err('tdate must be YYYY-MM-DD');
+
+  // find transaction month_key (we keep edits inside the same month)
+  $st = $db->prepare("SELECT month_key FROM transactions WHERE id=?");
+  $st->execute([$id]);
+  $mk = $st->fetchColumn();
+  if (!$mk) err('Transaction not found', 404);
+
+  if (substr($tdate, 0, 7) !== $mk) err('Date must stay within the same month', 409);
+
+  $st2 = $db->prepare("UPDATE transactions SET category_id=?, amount=?, tdate=?, note=? WHERE id=?");
+  $st2->execute([$catId, $amt, $tdate, $note, $id]);
+
+  ok(['ok' => true]);
 }
 
 if (preg_match('#^/transactions/(\d+)$#', $path, $m) && $method === 'DELETE') {
@@ -597,6 +635,293 @@ if ($path === '/recurring/apply' && $method === 'POST') {
   }
 
   ok(['ok' => true, 'added' => $added]);
+}
+
+// GET /api/month/export?month=YYYY-MM&format=json|csv
+if ($path === '/month/export' && $method === 'GET') {
+  $mk = trim((string)($_GET['month'] ?? ''));
+  $format = strtolower(trim((string)($_GET['format'] ?? 'json')));
+
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month query param required (YYYY-MM)');
+  if (!in_array($format, ['json','csv'])) err('format must be json or csv');
+
+  // Transactions with category details
+  $stTx = $db->prepare("
+    SELECT
+      t.amount, t.tdate, COALESCE(t.note,'') AS note,
+      c.name AS category_name, c.type AS category_type, c.color AS category_color
+    FROM transactions t
+    JOIN categories c ON c.id = t.category_id
+    WHERE t.month_key = ?
+    ORDER BY t.tdate ASC, t.id ASC
+  ");
+  $stTx->execute([$mk]);
+  $txs = $stTx->fetchAll(PDO::FETCH_ASSOC);
+
+  if ($format === 'csv') {
+    $rows = [];
+    $rows[] = ['date','type','category','amount','note'];
+    foreach ($txs as $t) {
+      $rows[] = [$t['tdate'], $t['category_type'], $t['category_name'], (int)$t['amount'], $t['note']];
+    }
+    send_csv("money-tracker-$mk.csv", $rows);
+  }
+
+  // Goal
+  $stG = $db->prepare("SELECT COALESCE(savings_goal,0) AS savings_goal FROM goals WHERE month_key=?");
+  $stG->execute([$mk]);
+  $goal = $stG->fetch(PDO::FETCH_ASSOC);
+  $goalVal = $goal ? (int)$goal['savings_goal'] : 0;
+
+  // Budgets (with category)
+  $stB = $db->prepare("
+    SELECT b.budget_amount, c.name AS category_name, c.type AS category_type, c.color AS category_color
+    FROM budgets b
+    JOIN categories c ON c.id = b.category_id
+    WHERE b.month_key = ?
+    ORDER BY c.name ASC
+  ");
+  $stB->execute([$mk]);
+  $budgets = $stB->fetchAll(PDO::FETCH_ASSOC);
+
+  // Categories referenced (from txs + budgets)
+  $catSet = [];
+  foreach ($txs as $t) {
+    $key = strtolower($t['category_type'].'|'.$t['category_name']);
+    $catSet[$key] = ['name'=>$t['category_name'], 'type'=>$t['category_type'], 'color'=>$t['category_color']];
+  }
+  foreach ($budgets as $b) {
+    $key = strtolower($b['category_type'].'|'.$b['category_name']);
+    $catSet[$key] = ['name'=>$b['category_name'], 'type'=>$b['category_type'], 'color'=>$b['category_color']];
+  }
+  $cats = array_values($catSet);
+
+  ok([
+    'month_key' => $mk,
+    'goal' => ['savings_goal' => $goalVal],
+    'categories' => $cats,
+    'budgets' => array_map(fn($b)=>[
+      'category_name'=>$b['category_name'],
+      'category_type'=>$b['category_type'],
+      'category_color'=>$b['category_color'],
+      'budget_amount'=>(int)$b['budget_amount'],
+    ], $budgets),
+    'transactions' => array_map(fn($t)=>[
+      'tdate'=>$t['tdate'],
+      'category_name'=>$t['category_name'],
+      'category_type'=>$t['category_type'],
+      'category_color'=>$t['category_color'],
+      'amount'=>(int)$t['amount'],
+      'note'=>$t['note'],
+    ], $txs),
+  ]);
+}
+
+// POST /api/month/import  { payload: {..export json..}, overwrite: true|false }
+if ($path === '/month/import' && $method === 'POST') {
+  $b = json_in();
+  $payload = $b['payload'] ?? null;
+  $overwrite = !empty($b['overwrite']);
+
+  if (!is_array($payload)) err('payload required (export JSON)');
+  $mk = trim((string)($payload['month_key'] ?? ''));
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('payload.month_key must be YYYY-MM');
+
+  $db->beginTransaction();
+
+  try {
+    // ensure month exists
+    $db->prepare("INSERT OR IGNORE INTO months(month_key) VALUES(?)")->execute([$mk]);
+    $db->prepare("INSERT OR IGNORE INTO goals(month_key, savings_goal) VALUES(?,0)")->execute([$mk]);
+
+    // check existing data
+    $stHasTx = $db->prepare("SELECT COUNT(*) FROM transactions WHERE month_key=?");
+    $stHasTx->execute([$mk]);
+    $hasTx = (int)$stHasTx->fetchColumn();
+
+    $stHasB = $db->prepare("SELECT COUNT(*) FROM budgets WHERE month_key=?");
+    $stHasB->execute([$mk]);
+    $hasB = (int)$stHasB->fetchColumn();
+
+    $hasAny = ($hasTx > 0) || ($hasB > 0);
+
+    if ($hasAny && !$overwrite) {
+      $db->rollBack();
+      err('Target month already has data. Re-try import with overwrite=true.', 409);
+    }
+
+    if ($overwrite) {
+      $db->prepare("DELETE FROM transactions WHERE month_key=?")->execute([$mk]);
+      $db->prepare("DELETE FROM budgets WHERE month_key=?")->execute([$mk]);
+      $db->prepare("UPDATE goals SET savings_goal=0 WHERE month_key=?")->execute([$mk]);
+    }
+
+    // helper: get or create category by name+type
+    $getCat = function($name, $type, $color) use ($db) {
+      $name = trim((string)$name);
+      $type = trim((string)$type);
+      $color = trim((string)$color);
+
+      $st = $db->prepare("SELECT id FROM categories WHERE lower(name)=lower(?) AND type=? LIMIT 1");
+      $st->execute([$name, $type]);
+      $id = $st->fetchColumn();
+      if ($id) return (int)$id;
+
+      $st2 = $db->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
+      $st2->execute([$name, $type, $color ?: '#BFC3E6']);
+      return (int)$db->lastInsertId();
+    };
+
+    // budgets
+    $budgets = $payload['budgets'] ?? [];
+    if (is_array($budgets)) {
+      $stUp = $db->prepare("
+        INSERT INTO budgets(month_key, category_id, budget_amount)
+        VALUES(?,?,?)
+        ON CONFLICT(month_key, category_id) DO UPDATE SET budget_amount=excluded.budget_amount
+      ");
+
+      foreach ($budgets as $bb) {
+        if (!is_array($bb)) continue;
+        $cid = $getCat($bb['category_name'] ?? '', $bb['category_type'] ?? 'expense', $bb['category_color'] ?? '');
+        $amt = (int)($bb['budget_amount'] ?? 0);
+        if ($amt < 0) $amt = 0;
+        $stUp->execute([$mk, $cid, $amt]);
+      }
+    }
+
+    // goal
+    $goal = $payload['goal'] ?? null;
+    if (is_array($goal)) {
+      $g = (int)($goal['savings_goal'] ?? 0);
+      if ($g < 0) $g = 0;
+      $db->prepare("UPDATE goals SET savings_goal=? WHERE month_key=?")->execute([$g, $mk]);
+    }
+
+    // transactions
+    $txs = $payload['transactions'] ?? [];
+    if (is_array($txs)) {
+      $stIns = $db->prepare("INSERT INTO transactions(month_key, category_id, amount, tdate, note) VALUES(?,?,?,?,?)");
+
+      foreach ($txs as $t) {
+        if (!is_array($t)) continue;
+        $cid = $getCat($t['category_name'] ?? '', $t['category_type'] ?? 'expense', $t['category_color'] ?? '');
+        $amt = (int)($t['amount'] ?? 0);
+        $date = (string)($t['tdate'] ?? '');
+        $note = (string)($t['note'] ?? '');
+
+        if ($amt <= 0) continue;
+        if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) continue;
+        if (substr($date, 0, 7) !== $mk) continue;
+
+        $stIns->execute([$mk, $cid, $amt, $date, $note]);
+      }
+    }
+
+    $db->commit();
+    ok(['ok'=>true, 'month_key'=>$mk]);
+  } catch (Throwable $e) {
+    if ($db->inTransaction()) $db->rollBack();
+    err('Import failed: '.$e->getMessage(), 500);
+  }
+}
+
+// GET /api/trends?months=6
+if ($path === '/trends' && $method === 'GET') {
+  $n = (int)($_GET['months'] ?? 6);
+  if ($n < 1) $n = 1;
+  if ($n > 24) $n = 24;
+
+  $sql = "
+    WITH m AS (
+      SELECT month_key
+      FROM months
+      ORDER BY month_key DESC
+      LIMIT :n
+    ),
+    s AS (
+      SELECT
+        t.month_key,
+        SUM(CASE WHEN c.type='income' THEN t.amount ELSE 0 END) AS income,
+        SUM(CASE WHEN c.type='expense' THEN t.amount ELSE 0 END) AS expenses
+      FROM transactions t
+      JOIN categories c ON c.id = t.category_id
+      GROUP BY t.month_key
+    )
+    SELECT
+      m.month_key,
+      COALESCE(s.income,0) AS income,
+      COALESCE(s.expenses,0) AS expenses,
+      COALESCE(g.savings_goal,0) AS savings_goal
+    FROM m
+    LEFT JOIN s ON s.month_key = m.month_key
+    LEFT JOIN goals g ON g.month_key = m.month_key
+    ORDER BY m.month_key ASC
+  ";
+
+  $st = $db->prepare($sql);
+  $st->bindValue(':n', $n, PDO::PARAM_INT);
+  $st->execute();
+
+  $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+  ok(['months' => array_map(fn($r) => [
+    'month_key' => $r['month_key'],
+    'income' => (int)$r['income'],
+    'expenses' => (int)$r['expenses'],
+    'savings_goal' => (int)$r['savings_goal'],
+  ], $rows)]);
+}
+
+// GET /api/trends/export?months=12
+if ($path === '/trends/export' && $method === 'GET') {
+  $n = (int)($_GET['months'] ?? 12);
+  if ($n < 1) $n = 1;
+  if ($n > 24) $n = 24;
+
+  $sql = "
+    WITH m AS (
+      SELECT month_key
+      FROM months
+      ORDER BY month_key DESC
+      LIMIT :n
+    ),
+    s AS (
+      SELECT
+        t.month_key,
+        SUM(CASE WHEN c.type='income' THEN t.amount ELSE 0 END) AS income,
+        SUM(CASE WHEN c.type='expense' THEN t.amount ELSE 0 END) AS expenses
+      FROM transactions t
+      JOIN categories c ON c.id = t.category_id
+      GROUP BY t.month_key
+    )
+    SELECT
+      m.month_key,
+      COALESCE(s.income,0) AS income,
+      COALESCE(s.expenses,0) AS expenses,
+      COALESCE(g.savings_goal,0) AS savings_goal
+    FROM m
+    LEFT JOIN s ON s.month_key = m.month_key
+    LEFT JOIN goals g ON g.month_key = m.month_key
+    ORDER BY m.month_key ASC
+  ";
+
+  $st = $db->prepare($sql);
+  $st->bindValue(':n', $n, PDO::PARAM_INT);
+  $st->execute();
+  $rows = $st->fetchAll(PDO::FETCH_ASSOC);
+
+  $csv = [];
+  $csv[] = ['month','income','expenses','balance','savings_goal'];
+
+  foreach ($rows as $r) {
+    $inc = (int)$r['income'];
+    $exp = (int)$r['expenses'];
+    $bal = $inc - $exp;
+    $goal = (int)$r['savings_goal'];
+    $csv[] = [$r['month_key'], $inc, $exp, $bal, $goal];
+  }
+
+  send_csv("trends-last-$n-months.csv", $csv);
 }
 
 err('Not found', 404);
