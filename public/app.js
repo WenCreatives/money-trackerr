@@ -101,6 +101,46 @@ async function loadSummary() {
 
   renderBreakdown(s.breakdown);
   renderChart(s);
+
+  // ===== Savings Goal UI =====
+  const goal = Number(s.savings_goal || 0);
+  const income = Number(s.total_income || 0);
+  const expenses = Number(s.total_expenses || 0);
+  const balance = Number(s.balance || 0);
+
+  $("#goalInput").value = goal ? goal : "";
+  $("#goalKpi").textContent = fmtKsh(balance);
+
+  // Progress: only count positive savings toward goal
+  const pct = (goal > 0 && balance > 0) ? Math.min(100, Math.round((balance / goal) * 100)) : 0;
+  $("#goalBar").style.width = pct + "%";
+
+  if (goal <= 0) {
+    $("#goalStatus").textContent = "No goal";
+    $("#goalStatus").className = "chip chipTeal";
+    $("#goalSub").textContent = "Set a goal for this month";
+  } else {
+    const diff = balance - goal;
+    if (diff >= 0) {
+      $("#goalStatus").textContent = `Over by ${fmtKsh(diff)}`;
+      $("#goalStatus").className = "chip chipGreen";
+      $("#goalSub").textContent = `${pct}% of goal reached`;
+    } else {
+      $("#goalStatus").textContent = `Under by ${fmtKsh(Math.abs(diff))}`;
+      $("#goalStatus").className = "chip chipPink";
+      $("#goalSub").textContent = `${pct}% of goal reached`;
+    }
+  }
+
+  // Overspending alert
+  const alertEl = $("#overspendAlert");
+  if (expenses > income && (income > 0 || expenses > 0)) {
+    alertEl.hidden = false;
+    alertEl.textContent = `Overspending alert: You spent ${fmtKsh(expenses - income)} more than you earned this month.`;
+  } else {
+    alertEl.hidden = true;
+    alertEl.textContent = "";
+  }
 }
 
 function renderBreakdown(breakdown) {
@@ -384,6 +424,18 @@ function wireUI() {
       renderTxCategoryOptions();
     } catch (err) {
       alert(err.message);
+    }
+  });
+
+  $("#saveGoalBtn").addEventListener("click", async () => {
+    const goal = Number($("#goalInput").value || 0);
+    if (goal < 0) return alert("Goal must be 0 or more.");
+
+    try {
+      await apiSend("/goal", "POST", { month_key: state.month, savings_goal: Math.floor(goal) });
+      await refreshMonth();
+    } catch (e) {
+      alert(e.message);
     }
   });
 }

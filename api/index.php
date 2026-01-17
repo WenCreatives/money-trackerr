@@ -1,327 +1,298 @@
 <?php
 declare(strict_types=1);
 
-/**
- * Simple Money Tracker API (PHP + SQLite)
- * Run with:
- *   php -S localhost:8000 -t public
- * API will be served from /api via ../api/index.php using the rewrite in index.html fetch URLs.
- */
-
 header('Content-Type: application/json; charset=utf-8');
-header('Access-Control-Allow-Origin: *');
-header('Access-Control-Allow-Headers: Content-Type');
-header('Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS');
 
-if ($_SERVER['REQUEST_METHOD'] === 'OPTIONS') {
-  http_response_code(204);
-  exit;
-}
-
-function json_out($data, int $code = 200): void {
-  http_response_code($code);
-  echo json_encode($data, JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
-  exit;
-}
-
-function body_json(): array {
+function json_in(): array {
   $raw = file_get_contents('php://input');
   if (!$raw) return [];
-  $decoded = json_decode($raw, true);
-  return is_array($decoded) ? $decoded : [];
+  $data = json_decode($raw, true);
+  return is_array($data) ? $data : [];
 }
 
-function db(): PDO {
-  static $pdo = null;
-  if ($pdo) return $pdo;
-
-  $base = dirname(__DIR__);
-  $dataDir = $base . DIRECTORY_SEPARATOR . 'data';
-  if (!is_dir($dataDir)) mkdir($dataDir, 0777, true);
-
-  $path = $dataDir . DIRECTORY_SEPARATOR . 'app.sqlite';
-  $pdo = new PDO('sqlite:' . $path, null, null, [
-    PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
-    PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC
-  ]);
-
-  init_db($pdo);
-  return $pdo;
+function ok($data): void {
+  http_response_code(200);
+  echo json_encode($data, JSON_UNESCAPED_SLASHES);
+  exit;
 }
 
-function init_db(PDO $pdo): void {
-  $pdo->exec("
-    CREATE TABLE IF NOT EXISTS months (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month_key TEXT NOT NULL UNIQUE
-    );
+function err(string $msg, int $code = 400): void {
+  http_response_code($code);
+  echo json_encode(['error' => $msg], JSON_UNESCAPED_SLASHES);
+  exit;
+}
 
-    CREATE TABLE IF NOT EXISTS categories (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      name TEXT NOT NULL,
-      type TEXT NOT NULL CHECK(type IN ('income','expense')),
-      color TEXT NOT NULL
-    );
+function path_no_api_prefix(string $path): string {
+  // if served via /public/api/index.php, REQUEST_URI includes /api/...
+  if (str_starts_with($path, '/api')) return substr($path, 4) ?: '/';
+  return $path ?: '/';
+}
 
-    CREATE TABLE IF NOT EXISTS transactions (
-      id INTEGER PRIMARY KEY AUTOINCREMENT,
-      month_id INTEGER NOT NULL,
-      category_id INTEGER NOT NULL,
-      amount REAL NOT NULL,
-      tdate TEXT NOT NULL, -- YYYY-MM-DD
-      note TEXT,
-      FOREIGN KEY(month_id) REFERENCES months(id),
-      FOREIGN KEY(category_id) REFERENCES categories(id)
-    );
+$dbPath = __DIR__ . '/data.sqlite';
+$db = new PDO('sqlite:' . $dbPath);
+$db->setAttribute(PDO::ATTR_ERRMODE, PDO::ERRMODE_EXCEPTION);
+
+// --- Init tables ---
+$db->exec("
+  CREATE TABLE IF NOT EXISTS months (
+    month_key TEXT PRIMARY KEY
+  );
+");
+
+$db->exec("
+  CREATE TABLE IF NOT EXISTS categories (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL CHECK(type IN ('income','expense')),
+    color TEXT NOT NULL
+  );
+");
+
+$db->exec("
+  CREATE TABLE IF NOT EXISTS transactions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    month_key TEXT NOT NULL,
+    category_id INTEGER NOT NULL,
+    amount INTEGER NOT NULL,
+    tdate TEXT NOT NULL,
+    note TEXT,
+    FOREIGN KEY(month_key) REFERENCES months(month_key),
+    FOREIGN KEY(category_id) REFERENCES categories(id)
+  );
+");
+
+$db->exec("
+  CREATE TABLE IF NOT EXISTS goals (
+    month_key TEXT PRIMARY KEY,
+    savings_goal INTEGER NOT NULL DEFAULT 0,
+    FOREIGN KEY(month_key) REFERENCES months(month_key)
+  );
+");
+
+// Seed default categories once (optional)
+$hasCats = (int)$db->query("SELECT COUNT(*) FROM categories")->fetchColumn();
+if ($hasCats === 0) {
+  $seed = [
+    ['Salary','income','#08F850'],
+    ['Side Gigs','income','#58D8B0'],
+    ['Groceries','expense','#E82888'],
+    ['Transport','expense','#7028F8'],
+    ['Bills','expense','#F0A810'],
+  ];
+  $st = $db->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
+  foreach ($seed as $c) $st->execute($c);
+}
+
+// --- Routing ---
+$method = $_SERVER['REQUEST_METHOD'] ?? 'GET';
+$reqPath = parse_url($_SERVER['REQUEST_URI'] ?? '/', PHP_URL_PATH) ?: '/';
+$path = path_no_api_prefix($reqPath);
+
+// Normalize
+$path = rtrim($path, '/') ?: '/';
+
+if ($path === '/months' && $method === 'GET') {
+  $rows = $db->query("SELECT month_key FROM months ORDER BY month_key DESC")->fetchAll(PDO::FETCH_COLUMN);
+  ok(['months' => $rows]);
+}
+
+if ($path === '/months' && $method === 'POST') {
+  $b = json_in();
+  $mk = trim((string)($b['month_key'] ?? ''));
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month_key must be YYYY-MM');
+
+  $st = $db->prepare("INSERT OR IGNORE INTO months(month_key) VALUES(?)");
+  $st->execute([$mk]);
+
+  // Ensure goal row exists
+  $st2 = $db->prepare("INSERT OR IGNORE INTO goals(month_key, savings_goal) VALUES(?, 0)");
+  $st2->execute([$mk]);
+
+  ok(['ok' => true]);
+}
+
+if ($path === '/categories' && $method === 'GET') {
+  $rows = $db->query("SELECT id,name,type,color FROM categories ORDER BY type ASC, name ASC")->fetchAll(PDO::FETCH_ASSOC);
+  ok(['categories' => $rows]);
+}
+
+if ($path === '/categories' && $method === 'POST') {
+  $b = json_in();
+  $name = trim((string)($b['name'] ?? ''));
+  $type = (string)($b['type'] ?? '');
+  $color = (string)($b['color'] ?? '');
+
+  if ($name === '') err('Category name required');
+  if (!in_array($type, ['income','expense'], true)) err('type must be income or expense');
+  if ($color === '') err('color required');
+
+  $st = $db->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
+  $st->execute([$name,$type,$color]);
+
+  ok(['ok' => true, 'id' => (int)$db->lastInsertId()]);
+}
+
+if (preg_match('#^/categories/(\d+)$#', $path, $m) && $method === 'DELETE') {
+  $id = (int)$m[1];
+
+  $st = $db->prepare("SELECT COUNT(*) FROM transactions WHERE category_id=?");
+  $st->execute([$id]);
+  $cnt = (int)$st->fetchColumn();
+  if ($cnt > 0) err('Cannot delete category with transactions', 409);
+
+  $st2 = $db->prepare("DELETE FROM categories WHERE id=?");
+  $st2->execute([$id]);
+
+  ok(['ok' => true]);
+}
+
+if ($path === '/transactions' && $method === 'GET') {
+  $mk = trim((string)($_GET['month'] ?? ''));
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month query param required (YYYY-MM)');
+
+  $st = $db->prepare("
+    SELECT
+      t.id, t.amount, t.tdate, COALESCE(t.note,'') AS note,
+      c.name AS category_name, c.type AS category_type, c.color AS category_color
+    FROM transactions t
+    JOIN categories c ON c.id = t.category_id
+    WHERE t.month_key = ?
+    ORDER BY t.tdate DESC, t.id DESC
   ");
+  $st->execute([$mk]);
+  $rows = $st->fetchAll(PDO::FETCH_ASSOC);
 
-  // Seed default categories (only if empty)
-  $count = (int)$pdo->query("SELECT COUNT(*) AS c FROM categories")->fetch()['c'];
-  if ($count === 0) {
-    $seed = [
-      ['Salary','income','#08F850'],
-      ['Side Gigs','income','#58D8B0'],
-      ['Groceries','expense','#E82888'],
-      ['Transport','expense','#7028F8'],
-      ['Eating Out','expense','#F0A810'],
-      ['Misc','expense','#E02020'],
-    ];
-    $stmt = $pdo->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
-    foreach ($seed as $s) $stmt->execute($s);
-  }
+  ok(['transactions' => $rows]);
 }
 
-function ensure_month(PDO $pdo, string $month_key): int {
-  if (!preg_match('/^\d{4}-\d{2}$/', $month_key)) {
-    json_out(['error' => 'Invalid month_key. Use YYYY-MM'], 400);
-  }
-  $stmt = $pdo->prepare("SELECT id FROM months WHERE month_key = ?");
-  $stmt->execute([$month_key]);
-  $row = $stmt->fetch();
-  if ($row) return (int)$row['id'];
+if ($path === '/transactions' && $method === 'POST') {
+  $b = json_in();
+  $mk = trim((string)($b['month_key'] ?? ''));
+  $catId = (int)($b['category_id'] ?? 0);
+  $amount = (int)($b['amount'] ?? 0);
+  $date = trim((string)($b['date'] ?? ''));
+  $note = (string)($b['note'] ?? '');
 
-  $ins = $pdo->prepare("INSERT INTO months(month_key) VALUES(?)");
-  $ins->execute([$month_key]);
-  return (int)$pdo->lastInsertId();
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month_key must be YYYY-MM');
+  if ($catId <= 0) err('category_id required');
+  if ($amount <= 0) err('amount must be > 0');
+  if (!preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) err('date must be YYYY-MM-DD');
+
+  $db->prepare("INSERT OR IGNORE INTO months(month_key) VALUES(?)")->execute([$mk]);
+  $db->prepare("INSERT OR IGNORE INTO goals(month_key, savings_goal) VALUES(?,0)")->execute([$mk]);
+
+  $st = $db->prepare("INSERT INTO transactions(month_key,category_id,amount,tdate,note) VALUES(?,?,?,?,?)");
+  $st->execute([$mk,$catId,$amount,$date,$note]);
+
+  ok(['ok' => true, 'id' => (int)$db->lastInsertId()]);
 }
 
-function route(): array {
-  $uri = parse_url($_SERVER['REQUEST_URI'], PHP_URL_PATH) ?? '/';
-  // Expect /api/... if served behind public
-  $uri = preg_replace('#^/api#', '', $uri);
-  $parts = array_values(array_filter(explode('/', $uri), fn($p) => $p !== ''));
-  return $parts;
+if (preg_match('#^/transactions/(\d+)$#', $path, $m) && $method === 'DELETE') {
+  $id = (int)$m[1];
+  $st = $db->prepare("DELETE FROM transactions WHERE id=?");
+  $st->execute([$id]);
+  ok(['ok' => true]);
 }
-
-$pdo = db();
-$parts = route();
-$method = $_SERVER['REQUEST_METHOD'];
-
-$resource = $parts[0] ?? '';
-$id = $parts[1] ?? null;
 
 /**
- * Endpoints:
- * GET    /api/months
- * POST   /api/months            {month_key}
- *
- * GET    /api/categories
- * POST   /api/categories        {name,type,color}
- * PUT    /api/categories/{id}
- * DELETE /api/categories/{id}
- *
- * GET    /api/transactions?month=YYYY-MM
- * POST   /api/transactions      {month_key, category_id, amount, date(YYYY-MM-DD), note}
- * PUT    /api/transactions/{id}
- * DELETE /api/transactions/{id}
- *
- * GET    /api/summary?month=YYYY-MM
+ * NEW: Save goal
+ * POST /api/goal  { month_key: "YYYY-MM", savings_goal: 100000 }
  */
+if ($path === '/goal' && $method === 'POST') {
+  $b = json_in();
+  $mk = trim((string)($b['month_key'] ?? ''));
+  $goal = (int)($b['savings_goal'] ?? 0);
 
-if ($resource === 'months') {
-  if ($method === 'GET') {
-    $rows = $pdo->query("SELECT month_key FROM months ORDER BY month_key DESC")->fetchAll();
-    json_out(['months' => array_map(fn($r)=>$r['month_key'], $rows)]);
-  }
-  if ($method === 'POST') {
-    $b = body_json();
-    $mk = (string)($b['month_key'] ?? '');
-    $monthId = ensure_month($pdo, $mk);
-    json_out(['ok' => true, 'month_id' => $monthId, 'month_key' => $mk]);
-  }
-  json_out(['error' => 'Method not allowed'], 405);
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month_key must be YYYY-MM');
+  if ($goal < 0) err('savings_goal must be >= 0');
+
+  $db->prepare("INSERT OR IGNORE INTO months(month_key) VALUES(?)")->execute([$mk]);
+  $st = $db->prepare("INSERT INTO goals(month_key, savings_goal) VALUES(?, ?) 
+                      ON CONFLICT(month_key) DO UPDATE SET savings_goal=excluded.savings_goal");
+  $st->execute([$mk, $goal]);
+
+  ok(['ok' => true]);
 }
 
-if ($resource === 'categories') {
-  if ($method === 'GET') {
-    $rows = $pdo->query("SELECT * FROM categories ORDER BY type, name")->fetchAll();
-    json_out(['categories' => $rows]);
-  }
-  if ($method === 'POST') {
-    $b = body_json();
-    $name = trim((string)($b['name'] ?? ''));
-    $type = (string)($b['type'] ?? '');
-    $color = (string)($b['color'] ?? '#08F850');
-    if ($name === '' || !in_array($type, ['income','expense'], true)) {
-      json_out(['error' => 'Invalid category payload'], 400);
-    }
-    $stmt = $pdo->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
-    $stmt->execute([$name,$type,$color]);
-    json_out(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
-  }
-  if ($method === 'PUT' && $id) {
-    $b = body_json();
-    $name = trim((string)($b['name'] ?? ''));
-    $type = (string)($b['type'] ?? '');
-    $color = (string)($b['color'] ?? '#08F850');
-    if ($name === '' || !in_array($type, ['income','expense'], true)) {
-      json_out(['error' => 'Invalid category payload'], 400);
-    }
-    $stmt = $pdo->prepare("UPDATE categories SET name=?, type=?, color=? WHERE id=?");
-    $stmt->execute([$name,$type,$color,(int)$id]);
-    json_out(['ok' => true]);
-  }
-  if ($method === 'DELETE' && $id) {
-    // Prevent delete if used by transactions
-    $chk = $pdo->prepare("SELECT COUNT(*) AS c FROM transactions WHERE category_id=?");
-    $chk->execute([(int)$id]);
-    if ((int)$chk->fetch()['c'] > 0) {
-      json_out(['error' => 'Category in use. Delete related transactions first.'], 409);
-    }
-    $stmt = $pdo->prepare("DELETE FROM categories WHERE id=?");
-    $stmt->execute([(int)$id]);
-    json_out(['ok' => true]);
-  }
-  json_out(['error' => 'Method not allowed'], 405);
-}
+if ($path === '/summary' && $method === 'GET') {
+  $mk = trim((string)($_GET['month'] ?? ''));
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month query param required (YYYY-MM)');
 
-if ($resource === 'transactions') {
-  if ($method === 'GET') {
-    $mk = (string)($_GET['month'] ?? '');
-    if ($mk === '') json_out(['error' => 'month query param required'], 400);
-    $monthId = ensure_month($pdo, $mk);
-
-    $stmt = $pdo->prepare("
-      SELECT t.*, c.name AS category_name, c.type AS category_type, c.color AS category_color
-      FROM transactions t
-      JOIN categories c ON c.id = t.category_id
-      WHERE t.month_id = ?
-      ORDER BY t.tdate DESC, t.id DESC
-    ");
-    $stmt->execute([$monthId]);
-    json_out(['transactions' => $stmt->fetchAll()]);
-  }
-
-  if ($method === 'POST') {
-    $b = body_json();
-    $mk = (string)($b['month_key'] ?? '');
-    $category_id = (int)($b['category_id'] ?? 0);
-    $amount = (float)($b['amount'] ?? 0);
-    $date = (string)($b['date'] ?? '');
-    $note = (string)($b['note'] ?? '');
-
-    if ($mk === '' || $category_id <= 0 || $amount <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-      json_out(['error' => 'Invalid transaction payload'], 400);
-    }
-    $monthId = ensure_month($pdo, $mk);
-
-    $stmt = $pdo->prepare("INSERT INTO transactions(month_id, category_id, amount, tdate, note) VALUES(?,?,?,?,?)");
-    $stmt->execute([$monthId, $category_id, $amount, $date, $note]);
-    json_out(['ok' => true, 'id' => (int)$pdo->lastInsertId()]);
-  }
-
-  if ($method === 'PUT' && $id) {
-    $b = body_json();
-    $category_id = (int)($b['category_id'] ?? 0);
-    $amount = (float)($b['amount'] ?? 0);
-    $date = (string)($b['date'] ?? '');
-    $note = (string)($b['note'] ?? '');
-
-    if ($category_id <= 0 || $amount <= 0 || !preg_match('/^\d{4}-\d{2}-\d{2}$/', $date)) {
-      json_out(['error' => 'Invalid transaction payload'], 400);
-    }
-    $stmt = $pdo->prepare("UPDATE transactions SET category_id=?, amount=?, tdate=?, note=? WHERE id=?");
-    $stmt->execute([$category_id, $amount, $date, $note, (int)$id]);
-    json_out(['ok' => true]);
-  }
-
-  if ($method === 'DELETE' && $id) {
-    $stmt = $pdo->prepare("DELETE FROM transactions WHERE id=?");
-    $stmt->execute([(int)$id]);
-    json_out(['ok' => true]);
-  }
-
-  json_out(['error' => 'Method not allowed'], 405);
-}
-
-if ($resource === 'summary') {
-  if ($method !== 'GET') json_out(['error' => 'Method not allowed'], 405);
-
-  $mk = (string)($_GET['month'] ?? '');
-  if ($mk === '') json_out(['error' => 'month query param required'], 400);
-  $monthId = ensure_month($pdo, $mk);
-
-  // Totals
-  $stmt = $pdo->prepare("
-    SELECT
-      SUM(CASE WHEN c.type='income' THEN t.amount ELSE 0 END) AS total_income,
-      SUM(CASE WHEN c.type='expense' THEN t.amount ELSE 0 END) AS total_expenses
+  // totals
+  $stIn = $db->prepare("
+    SELECT COALESCE(SUM(t.amount),0)
     FROM transactions t
-    JOIN categories c ON c.id = t.category_id
-    WHERE t.month_id = ?
+    JOIN categories c ON c.id=t.category_id
+    WHERE t.month_key=? AND c.type='income'
   ");
-  $stmt->execute([$monthId]);
-  $tot = $stmt->fetch() ?: ['total_income'=>0,'total_expenses'=>0];
-  $income = (float)($tot['total_income'] ?? 0);
-  $expenses = (float)($tot['total_expenses'] ?? 0);
+  $stIn->execute([$mk]);
+  $income = (int)$stIn->fetchColumn();
+
+  $stOut = $db->prepare("
+    SELECT COALESCE(SUM(t.amount),0)
+    FROM transactions t
+    JOIN categories c ON c.id=t.category_id
+    WHERE t.month_key=? AND c.type='expense'
+  ");
+  $stOut->execute([$mk]);
+  $expenses = (int)$stOut->fetchColumn();
+
   $balance = $income - $expenses;
 
-  // Highest spending category (expense)
-  $stmt2 = $pdo->prepare("
-    SELECT c.id, c.name, c.color, SUM(t.amount) AS amount
+  // breakdown
+  $stB = $db->prepare("
+    SELECT c.name, c.type, c.color, COALESCE(SUM(t.amount),0) AS amount
+    FROM categories c
+    LEFT JOIN transactions t ON t.category_id=c.id AND t.month_key=?
+    GROUP BY c.id
+    HAVING amount > 0
+    ORDER BY amount DESC
+  ");
+  $stB->execute([$mk]);
+  $breakdown = $stB->fetchAll(PDO::FETCH_ASSOC);
+
+  // highest spend (expense max)
+  $stTop = $db->prepare("
+    SELECT c.name, COALESCE(SUM(t.amount),0) AS amount
     FROM transactions t
-    JOIN categories c ON c.id = t.category_id
-    WHERE t.month_id = ? AND c.type='expense'
-    GROUP BY c.id, c.name, c.color
+    JOIN categories c ON c.id=t.category_id
+    WHERE t.month_key=? AND c.type='expense'
+    GROUP BY c.id
     ORDER BY amount DESC
     LIMIT 1
   ");
-  $stmt2->execute([$monthId]);
-  $top = $stmt2->fetch();
+  $stTop->execute([$mk]);
+  $topRow = $stTop->fetch(PDO::FETCH_ASSOC);
+  $highest = $topRow ? ['name' => $topRow['name'], 'amount' => (int)$topRow['amount']] : null;
 
-  // Breakdown for charts (by category)
-  $stmt3 = $pdo->prepare("
-    SELECT c.id, c.name, c.type, c.color, SUM(t.amount) AS amount
-    FROM transactions t
-    JOIN categories c ON c.id = t.category_id
-    WHERE t.month_id = ?
-    GROUP BY c.id, c.name, c.type, c.color
-    ORDER BY c.type, amount DESC
-  ");
-  $stmt3->execute([$monthId]);
-  $breakdown = $stmt3->fetchAll();
+  // goal
+  $stG = $db->prepare("SELECT savings_goal FROM goals WHERE month_key=?");
+  $stG->execute([$mk]);
+  $goal = (int)($stG->fetchColumn() ?? 0);
 
-  json_out([
-    'month_key' => $mk,
+  $progress = 0.0;
+  if ($goal > 0 && $balance > 0) {
+    $progress = min(1.0, $balance / $goal);
+  }
+
+  $diff = $balance - $goal; // >=0 means over goal
+  $overspend = $expenses > $income;
+  $overspendAmount = $overspend ? ($expenses - $income) : 0;
+
+  ok([
     'total_income' => $income,
     'total_expenses' => $expenses,
     'balance' => $balance,
-    'highest_spend' => $top ? [
-      'id' => (int)$top['id'],
-      'name' => $top['name'],
-      'color' => $top['color'],
-      'amount' => (float)$top['amount']
-    ] : null,
-    'breakdown' => array_map(function($r){
-      return [
-        'id' => (int)$r['id'],
-        'name' => $r['name'],
-        'type' => $r['type'],
-        'color' => $r['color'],
-        'amount' => (float)$r['amount']
-      ];
-    }, $breakdown)
+    'highest_spend' => $highest,
+    'breakdown' => $breakdown,
+
+    // NEW goal fields
+    'savings_goal' => $goal,
+    'savings_progress' => $progress,   // 0..1
+    'savings_diff' => $diff,           // balance - goal
+    'overspend' => $overspend,
+    'overspend_amount' => $overspendAmount
   ]);
 }
 
-json_out(['error' => 'Not found'], 404);
+err('Not found', 404);

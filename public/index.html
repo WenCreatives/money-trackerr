@@ -71,6 +71,32 @@
           </div>
         </div>
 
+        <div class="card goalCard">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Savings Goal</div>
+              <div class="small" id="goalSub">Set a goal for this month</div>
+            </div>
+
+            <div class="goalActions">
+              <input id="goalInput" class="input goalInput" type="number" min="0" step="1" placeholder="Goal (Ksh)">
+              <button id="saveGoalBtn" class="btn btnSmall">Save</button>
+            </div>
+          </div>
+
+          <div class="progress">
+            <div class="progressBar" id="goalBar"></div>
+          </div>
+
+          <div class="rowBetween" style="margin-top:10px;">
+            <div class="small">Saved this month</div>
+            <div class="chip chipTeal" id="goalStatus">—</div>
+          </div>
+          <div class="kpi" id="goalKpi">Ksh0</div>
+
+          <div id="overspendAlert" class="alert" hidden></div>
+        </div>
+
         <div class="dashGrid">
           <div class="card chartCard dashMain">
             <div class="rowBetween">
