@@ -924,4 +924,25 @@ if ($path === '/trends/export' && $method === 'GET') {
   send_csv("trends-last-$n-months.csv", $csv);
 }
 
+// POST /api/goals  { month_key:"YYYY-MM", savings_goal: 12000 }
+if ($path === '/goals' && $method === 'POST') {
+  $b = json_in();
+  $mk = trim((string)($b['month_key'] ?? ''));
+  $goal = (int)($b['savings_goal'] ?? 0);
+
+  if (!preg_match('/^\d{4}-\d{2}$/', $mk)) err('month_key must be YYYY-MM');
+  if ($goal < 0) $goal = 0;
+
+  $db->prepare("INSERT OR IGNORE INTO months(month_key) VALUES(?)")->execute([$mk]);
+
+  $st = $db->prepare("
+    INSERT INTO goals(month_key, savings_goal)
+    VALUES(?,?)
+    ON CONFLICT(month_key) DO UPDATE SET savings_goal=excluded.savings_goal
+  ");
+  $st->execute([$mk, $goal]);
+
+  ok(['ok'=>true]);
+}
+
 err('Not found', 404);

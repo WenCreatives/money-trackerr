@@ -734,3 +734,30 @@
   border:1px solid rgba(240,168,16,.35);
   color: var(--amber);
 }
+
+.inlineEdit{
+  cursor:pointer;
+  border-bottom: 1px dashed rgba(191,195,230,.45);
+  padding-bottom: 2px;
+}
+.inlineEdit:hover{ filter: brightness(1.06); }
+
+.inlinePlaceholder{
+  color: var(--muted);
+  border-bottom-color: rgba(191,195,230,.25);
+}
+
+.inlineInput{
+  width: 160px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(42,42,122,.9);
+  background: rgba(24,24,96,.7);
+  color: var(--text);
+  outline: none;
+  font-weight: 1000;
+}
+.inlineInput:focus{
+  border-color: rgba(8,248,80,.55);
+  box-shadow: 0 0 0 3px rgba(8,248,80,.12);
+}

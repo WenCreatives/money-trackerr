@@ -259,6 +259,112 @@ function confirmDialog({
   });
 }
 
+function isTypingTarget(el){
+  if (!el) return false;
+  const tag = (el.tagName || "").toLowerCase();
+  return tag === "input" || tag === "textarea" || tag === "select" || el.isContentEditable;
+}
+
+function closeAnyOpenModal(){
+  // Close the top-most known modal (adjust ids if yours differ)
+  const ids = ["confirmModal","breakdownModal","deleteMonthModal","monthModal","modal"];
+  for (const id of ids){
+    const m = document.getElementById(id);
+    if (m && !m.classList.contains("hidden")){
+      // try dedicated closers if they exist
+      if (id === "breakdownModal" && typeof closeBreakdownModal === "function") return closeBreakdownModal();
+      if (id === "deleteMonthModal" && typeof closeDeleteMonthModal === "function") return closeDeleteMonthModal();
+      if (id === "monthModal" && typeof closeMonthModal === "function") return closeMonthModal();
+      if (id === "modal" && typeof closeModal === "function") return closeModal();
+      // fallback
+      m.classList.add("hidden");
+      return;
+    }
+  }
+}
+
+function openAddTransaction(){
+  if (typeof openTxModalForAdd === "function") return openTxModalForAdd();
+  if (typeof openModal === "function") return openModal(); // fallback
+  const btn = document.getElementById("addTxBtn");
+  if (btn) btn.click();
+}
+
+function numFromAny(x){
+  return Number(String(x ?? "").replace(/[^\d.-]/g, "")) || 0;
+}
+
+function startInlineNumberEdit(targetEl, { getValue, onSave, formatDisplay, placeholderText }) {
+  if (!targetEl) return;
+  if (targetEl.dataset.editing === "1") return;
+
+  targetEl.dataset.editing = "1";
+
+  const oldValue = Number(getValue());
+  const oldText = targetEl.textContent;
+
+  const input = document.createElement("input");
+  input.type = "number";
+  input.min = "0";
+  input.step = "1";
+  input.className = "inlineInput";
+  input.value = String(Math.max(0, Math.floor(oldValue)));
+  input.placeholder = placeholderText || "Enter amount";
+
+  // replace element with input
+  targetEl.replaceWith(input);
+  input.focus();
+  input.select();
+
+  const restore = () => {
+    const span = document.createElement("span");
+    span.className = targetEl.className;
+    span.dataset.inlineType = targetEl.dataset.inlineType;
+    span.dataset.inlineGoal = targetEl.dataset.inlineGoal || "";
+    span.dataset.inlineBudget = targetEl.dataset.inlineBudget || "";
+    span.textContent = oldText;
+    span.dataset.editing = "0";
+    input.replaceWith(span);
+  };
+
+  const commit = async () => {
+    const newVal = Math.max(0, Math.floor(Number(input.value || 0)));
+
+    try {
+      await onSave(newVal);
+
+      const span = document.createElement("span");
+      span.className = targetEl.className.replace(" inlinePlaceholder", "");
+      span.dataset.inlineType = targetEl.dataset.inlineType;
+      span.dataset.inlineGoal = targetEl.dataset.inlineGoal || "";
+      span.dataset.inlineBudget = targetEl.dataset.inlineBudget || "";
+
+      span.textContent = formatDisplay(newVal);
+      span.dataset.editing = "0";
+
+      input.replaceWith(span);
+      toast("Saved", "ok");
+    } catch (err) {
+      toast(err?.message || "Save failed", "err");
+      restore();
+    }
+  };
+
+  input.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      commit();
+    }
+    if (e.key === "Escape") {
+      e.preventDefault();
+      restore();
+    }
+  });
+
+  // Blur: cancel (to match your "Enter saves" request)
+  input.addEventListener("blur", () => restore());
+}
+
 async function apiGet(path) {
   const res = await fetch(API(path));
   const data = await res.json();
@@ -415,7 +521,15 @@ function renderBudgets() {
 
           <div class="budgetMeta">
             <div class="itemTitle">${c.name} ${chip}</div>
-            <div class="itemSub">Spent ${fmtKsh(spent)} • Budget ${budget > 0 ? fmtKsh(budget) : "Not set"} • ${pctText}</div>
+            <div class="itemSub">Spent ${fmtKsh(spent)} of
+              <span
+                class="inlineEdit ${budget ? "" : "inlinePlaceholder"}"
+                data-inline-type="budget"
+                data-inline-budget="${c.id}"
+                data-value="${budget}">
+                ${budget ? fmtKsh(budget) : "Set budget"}
+              </span>
+              • ${pctText}</div>
             <div class="miniProgress">
               <div class="miniBar" style="width:${budget > 0 ? Math.min(100, pct) : 0}%; ${barStyle}"></div>
             </div>
@@ -621,6 +735,19 @@ async function loadSummary() {
   // Progress: only count positive savings toward goal
   const pct = (goal > 0 && balance > 0) ? Math.min(100, Math.round((balance / goal) * 100)) : 0;
   $("#goalBar").style.width = pct + "%";
+
+  // Update goal display to be inline editable
+  const goalDisplayEl = $("#goalValue");
+  if (goalDisplayEl) {
+    goalDisplayEl.innerHTML = `
+      <span
+        class="inlineEdit ${goal ? "" : "inlinePlaceholder"}"
+        data-inline-type="goal"
+        data-value="${goal}">
+        ${goal ? fmtKsh(goal) : "Set goal"}
+      </span>
+    `;
+  }
 
   if (goal <= 0) {
     $("#goalStatus").textContent = "No goal";
@@ -1138,6 +1265,26 @@ function renderTransactions() {
   const el = $("#txList");
   const filter = state.filter;
 
+  // Check if there are any transactions at all (empty state)
+  const hasAnyTx = (state.transactions || []).length > 0;
+
+  if (!hasAnyTx) {
+    el.innerHTML = `
+      <div class="card">
+        <div class="sectionTitle">No transactions yet</div>
+        <div class="small">Add your first transaction, or load demo data to preview the app.</div>
+        <div style="margin-top:12px; display:flex; gap:10px;">
+          <button class="btn" type="button" id="emptyAddTx">+ Add transaction</button>
+          <button class="btn btnGhost" type="button" id="emptyDemo">Load demo data</button>
+        </div>
+      </div>
+    `;
+
+    document.getElementById("emptyAddTx")?.addEventListener("click", openAddTransaction);
+    document.getElementById("emptyDemo")?.addEventListener("click", loadDemoData);
+    return;
+  }
+
   let tx = getFilteredTransactions();
 
   // Apply type filter (all/income/expense)
@@ -1397,6 +1544,101 @@ async function openTrends(){
 function exportTrendsCSV(){
   window.location.href = `/api/trends/export?months=12`;
   toast("Downloading trends CSV…", "ok");
+}
+
+async function loadDemoData(){
+  try{
+    const mk = state.month || (typeof monthKeyNow === "function" ? monthKeyNow() : new Date().toISOString().slice(0,7));
+
+    // avoid accidental duplicates
+    if ((state.transactions || []).length > 0) {
+      if (typeof confirmDialog === "function") {
+        const ok = await confirmDialog({
+          title: "Load demo data?",
+          message: "You already have transactions in this month. Demo data will add more transactions (duplicates). Continue?",
+          okText: "Load demo",
+          danger: false
+        });
+        if (!ok) return;
+      } else {
+        toast("This month already has transactions. Switch to a new month to load demo data.", "warn");
+        return;
+      }
+    }
+
+    // ensure month exists
+    if (typeof ensureMonth === "function") await ensureMonth(mk);
+
+    // demo categories
+    const demoCats = [
+      { name:"Salary", type:"income", color:"#08F850" },
+      { name:"Freelance", type:"income", color:"#58D8B0" },
+
+      { name:"Rent", type:"expense", color:"#E82888" },
+      { name:"Food", type:"expense", color:"#F0A810" },
+      { name:"Transport", type:"expense", color:"#7028F8" },
+      { name:"Airtime", type:"expense", color:"#BFC3E6" },
+      { name:"Entertainment", type:"expense", color:"#58D8B0" }
+    ];
+
+    // create categories if missing
+    for (const c of demoCats){
+      if (typeof ensureCategoryByNameType === "function") {
+        await ensureCategoryByNameType(c.name, c.type, c.color);
+      } else {
+        // fallback if you don't have ensureCategoryByNameType
+        await apiSend("/categories", "POST", c);
+      }
+    }
+
+    // reload categories so we can map ids
+    if (typeof loadCategories === "function") await loadCategories();
+
+    const cats = state.categories || [];
+    const idOf = (name, type) => {
+      const n = String(name).toLowerCase();
+      return (cats.find(x => String(x.name).toLowerCase() === n && String(x.type).toLowerCase() === type)?.id) || null;
+    };
+
+    const tx = [
+      { cat:"Salary", type:"income", day: "25", amount: 45000, note: "Monthly salary" },
+      { cat:"Freelance", type:"income", day: "12", amount: 15000, note: "Client project" },
+
+      { cat:"Rent", type:"expense", day:"01", amount: 18000, note: "House rent" },
+      { cat:"Food", type:"expense", day:"03", amount: 2200, note: "Groceries" },
+      { cat:"Food", type:"expense", day:"08", amount: 1200, note: "Lunch" },
+      { cat:"Transport", type:"expense", day:"05", amount: 900, note: "Matatu" },
+      { cat:"Transport", type:"expense", day:"15", amount: 1100, note: "Fuel" },
+      { cat:"Airtime", type:"expense", day:"09", amount: 300, note: "Data bundle" },
+      { cat:"Entertainment", type:"expense", day:"20", amount: 1500, note: "Movie" }
+    ];
+
+    // add transactions
+    for (const t of tx){
+      const cid = idOf(t.cat, t.type);
+      if (!cid) continue;
+
+      const tdate = `${mk}-${String(t.day).padStart(2,"0")}`;
+
+      await apiSend("/transactions", "POST", {
+        month_key: mk,
+        category_id: Number(cid),
+        amount: Number(t.amount),
+        date: tdate,
+        note: t.note
+      });
+    }
+
+    toast("Demo data loaded ✅", "ok");
+    if (typeof loadMonths === "function") await loadMonths();
+    state.month = mk;
+    const mp = document.getElementById("monthPicker");
+    if (mp) mp.value = mk;
+
+    if (typeof refreshMonth === "function") await refreshMonth();
+  } catch (err){
+    toast(err?.message || "Demo data failed", "err");
+  }
 }
 
 async function exportMonthJSON(){
@@ -1999,6 +2241,71 @@ function wireUI() {
   });
 
   $("#btnTrendExportCsv")?.addEventListener("click", exportTrendsCSV);
+
+  // Demo data button
+  document.getElementById("btnDemo")?.addEventListener("click", loadDemoData);
+
+  // Keyboard shortcuts
+  document.addEventListener("keydown", (e) => {
+    if (isTypingTarget(e.target)) {
+      // allow Esc even when typing
+      if (e.key !== "Escape") return;
+    }
+
+    // Esc closes modals
+    if (e.key === "Escape") {
+      closeAnyOpenModal();
+      return;
+    }
+
+    // "/" focuses transaction search
+    if (e.key === "/") {
+      e.preventDefault();
+      const s = document.getElementById("txSearch");
+      if (s) s.focus();
+      return;
+    }
+
+    // "A" opens Add Transaction
+    if (e.key.toLowerCase() === "a") {
+      e.preventDefault();
+      openAddTransaction();
+    }
+  });
+
+  // Inline editing: goal and budget
+  document.addEventListener("click", (e) => {
+    const el = e.target.closest?.("[data-inline-type]");
+    if (!el) return;
+
+    // Savings goal inline
+    if (el.dataset.inlineType === "goal") {
+      startInlineNumberEdit(el, {
+        getValue: () => numFromAny(el.dataset.value),
+        onSave: async (v) => {
+          await apiSend("/goals", "POST", { month_key: state.month, savings_goal: v });
+          await refreshMonth(); // update dashboard/insights immediately
+        },
+        formatDisplay: (v) => fmtKsh(v),
+        placeholderText: "Goal amount"
+      });
+      return;
+    }
+
+    // Budget inline (per category)
+    if (el.dataset.inlineType === "budget") {
+      const catId = Number(el.dataset.inlineBudget || 0);
+      startInlineNumberEdit(el, {
+        getValue: () => numFromAny(el.dataset.value),
+        onSave: async (v) => {
+          await apiSend("/budgets", "POST", { month_key: state.month, category_id: catId, budget_amount: v });
+          await refreshMonth();
+        },
+        formatDisplay: (v) => (v > 0 ? fmtKsh(v) : "Set budget"),
+        placeholderText: "Budget amount"
+      });
+    }
+  });
 
   // Click a month row → jump to month (trends table)
   // This is separate from transaction row clicks, so no conflict

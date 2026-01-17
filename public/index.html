@@ -24,6 +24,7 @@
         <button id="btnExportCsv" class="btn btnGhost btnSmall" type="button">Export CSV</button>
         <button id="btnImportJson" class="btn btnGhost btnSmall" type="button">Import JSON</button>
         <input id="importJsonFile" type="file" accept="application/json" style="display:none;">
+        <button id="btnDemo" class="btn btnGhost btnSmall" type="button">Load demo data</button>
         <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
       </div>
     </header>
@@ -94,7 +95,7 @@
           </div>
 
           <div class="rowBetween" style="margin-top:10px;">
-            <div class="small">Saved this month</div>
+            <div class="small">Goal: <span id="goalValue"></span></div>
             <div class="chip chipTeal" id="goalStatus">—</div>
           </div>
           <div class="kpi" id="goalKpi">Ksh0</div>
