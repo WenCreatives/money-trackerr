@@ -206,7 +206,7 @@
 }
 .chartWrap.empty canvas{
   display:none !important;
-}
+  }
   
   /* Buttons */
   .btn{
@@ -733,6 +733,207 @@
   background: rgba(240,168,16,.12);
   border:1px solid rgba(240,168,16,.35);
   color: var(--amber);
+}
+
+/* ===========================
+   MOBILE VERSION (Responsive)
+   Paste at bottom of styles.css
+=========================== */
+
+@media (max-width: 900px){
+
+  body{
+    background:
+      radial-gradient(900px 520px at 35% -10%, rgba(112,40,248,.22), transparent 60%),
+      radial-gradient(900px 520px at 105% 10%, rgba(232,40,136,.16), transparent 55%),
+      var(--bg);
+  }
+
+  .app{
+    padding: 16px 14px 28px;
+  }
+
+  /* Topbar becomes stacked */
+  .topbar{
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  .brand{
+    gap: 12px;
+  }
+
+  .logo{
+    width: 42px; height: 42px;
+    border-radius: 14px;
+  }
+
+  .title{ font-size: 18px; }
+  .subtitle{ font-size: 12px; }
+
+  /* Month picker + actions */
+  .monthRow{
+    min-width: 0 !important;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  #monthPicker{
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  /* Top actions: horizontal scroll on mobile */
+  .topActions{
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    gap: 10px;
+    padding-bottom: 6px;
+  }
+  .topActions::-webkit-scrollbar{ height: 0px; }
+
+  .topActions .btn{
+    flex: 0 0 auto;  /* stop shrinking */
+    white-space: nowrap;
+  }
+
+  /* Tabs: nicer on mobile */
+  .tabs{
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .tab{
+    padding: 12px 10px;
+    border-radius: 14px;
+    font-size: 13px;
+  }
+
+  /* All grids become 1 column */
+  .grid2,
+  .dashGrid{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Cards spacing tighter */
+  .card{
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .kpi{
+    font-size: 26px;
+  }
+
+  /* Chart height smaller */
+  canvas{
+    height: 280px !important;
+  }
+
+  /* Breakdown side panel should not be "thin" on mobile */
+  .dashSide{
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* List items fit mobile */
+  .item{
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .itemTitle{ font-size: 13px; }
+  .itemAmt{ font-size: 13px; }
+
+  /* Filters wrap */
+  .filters{
+    flex-wrap: wrap;
+  }
+  .pill{
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  /* Modals center on mobile too */
+  .modal{
+    align-items: center;
+    padding: 12px;
+  }
+  .modalCard{
+    border-radius: 18px;
+  }
+
+  /* Make inputs comfortable on mobile */
+  .input, .select{
+    font-size: 16px; /* prevents iOS zoom */
+  }
+}
+
+/* Full-screen modal behavior on mobile */
+.modalFull{
+  width: min(1100px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+/* Mobile: modal becomes full screen */
+@media (max-width: 900px){
+  .modal{
+    align-items: stretch;
+    padding: 0;
+  }
+  .modalCard.modalFull{
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  .dashGrid{
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+/* Desktop: 2 columns inside modal */
+@media (min-width: 901px){
+  .dashGrid{
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 14px;
+  }
+}
+
+.breakdownCharts{
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+}
+
+.miniChartCard{
+  border: 1px solid rgba(42,42,122,.9);
+  background: rgba(16,24,88,.25);
+  border-radius: 16px;
+  padding: 12px;
+}
+
+.miniChartTitle{
+  font-weight: 900;
+  font-size: 12px;
+  color: var(--muted);
+  margin-bottom: 8px;
+}
+
+.miniCanvas{
+  height: 220px;
+}
+
+@media (min-width: 980px){
+  .breakdownCharts{
+    grid-template-columns: 1fr;
+  }
 }
 
 .inlineEdit{
