@@ -1,3 +1,81 @@
+// --- IndexedDB simple storage (offline-first) ---
+const IDB_NAME = "moneyTrackerDB";
+const IDB_STORE = "kv";
+
+function openIDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => {
+      const db = req.result;
+      if (!db.objectStoreNames.contains(IDB_STORE)) {
+        db.createObjectStore(IDB_STORE);
+      }
+    };
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbGet(key) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readonly");
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.get(key);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function dbSet(key, value) {
+  const db = await openIDB();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(IDB_STORE, "readwrite");
+    const store = tx.objectStore(IDB_STORE);
+    const req = store.put(value, key);
+    req.onsuccess = () => resolve(true);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+// --- User-scoped offline storage keys (guest vs logged-in) ---
+let currentUserId = null;
+
+// Create Supabase client if available (graceful fallback if keys not set)
+let supabase = null;
+if (window.supabase?.createClient && window.SUPABASE_URL && window.SUPABASE_ANON_KEY) {
+  try {
+    supabase = window.supabase.createClient(window.SUPABASE_URL, window.SUPABASE_ANON_KEY);
+  } catch (e) {
+    console.warn("Supabase client creation failed:", e);
+  }
+}
+
+async function getUserId() {
+  try {
+    if (supabase) {
+      const { data } = await supabase.auth.getSession();
+      return data?.session?.user?.id || null;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+}
+
+function kUser(prefix) {
+  return currentUserId ? `${prefix}:user:${currentUserId}` : `${prefix}:guest`;
+}
+
+// Cached datasets
+const K_MONTHS = () => kUser("cache:months");
+const K_CATEGORIES = () => kUser("cache:categories");
+const K_TX = (m) => kUser(`cache:tx:${m}`);
+const K_SUMMARY = (m) => kUser(`cache:summary:${m}`);
+const K_BUDGETS = (m) => kUser(`cache:budgets:${m}`);
+const K_RECURRING = () => kUser("cache:recurring");
+const K_TRENDS = (n) => kUser(`cache:trends:${n}`);
+
 const API = (path) => `/api${path}`;
 
 const fmtKsh = (n) => {
@@ -378,21 +456,32 @@ function startInlineNumberEdit(targetEl, { getValue, onSave, formatDisplay, plac
   input.addEventListener("blur", () => restore());
 }
 
+function isOnline() {
+  return navigator.onLine;
+}
+
 async function apiGet(path) {
+  // If offline, throw so loaders fall back to IndexedDB
+  if (!isOnline()) throw new Error("offline");
   const res = await fetch(API(path));
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
   return data;
 }
 
 async function apiSend(path, method, payload) {
+  if (!isOnline()) throw new Error("offline");
   const res = await fetch(API(path), {
     method,
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload || {}),
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Request failed");
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch {}
+  if (!res.ok) throw new Error((data && data.error) || `HTTP ${res.status}`);
   return data;
 }
 
@@ -425,8 +514,17 @@ async function ensureMonth(mk) {
 }
 
 async function loadBudgets() {
-  const { budgets } = await apiGet(`/budgets?month=${encodeURIComponent(state.month)}`);
-  state.budgets = budgets || [];
+  try {
+    const res = await apiGet(`/budgets?month=${encodeURIComponent(state.month)}`);
+    const { budgets } = res;
+    await dbSet(K_BUDGETS(state.month), res);
+    state.budgets = budgets || [];
+  } catch (e) {
+    const cached = await dbGet(K_BUDGETS(state.month));
+    if (cached) {
+      state.budgets = cached.budgets || [];
+    }
+  }
 }
 
 function txMonthKey(t){
@@ -660,87 +758,149 @@ function renderBudgetSnapshot(){
 }
 
 async function loadMonths() {
-  const res = await apiGet("/months");
-  const months = (res.months || []).slice().sort().reverse(); // newest first
+  try {
+    const res = await apiGet("/months");
+    const months = (res.months || []).slice().sort().reverse(); // newest first
+    await dbSet(K_MONTHS(), res);
+    
+    const picker = $("#monthPicker");
+    picker.innerHTML = "";
 
-  const picker = $("#monthPicker");
-  picker.innerHTML = "";
+    // Add existing months
+    months.forEach(mk => {
+      const opt = document.createElement("option");
+      opt.value = mk;
+      opt.textContent = mk;
+      picker.appendChild(opt);
+    });
 
-  // Add existing months
-  months.forEach(mk => {
-    const opt = document.createElement("option");
-    opt.value = mk;
-    opt.textContent = mk;
-    picker.appendChild(opt);
-  });
+    // Add the special "Add new month" option at the bottom
+    const addOpt = document.createElement("option");
+    addOpt.value = ADD_MONTH_VALUE;
+    addOpt.textContent = "+ Add new month…";
+    picker.appendChild(addOpt);
 
-  // Add the special "Add new month" option at the bottom
-  const addOpt = document.createElement("option");
-  addOpt.value = ADD_MONTH_VALUE;
-  addOpt.textContent = "+ Add new month…";
-  picker.appendChild(addOpt);
+    // Select a valid month (or open modal if none)
+    if (!state.month && months.length) state.month = months[0];
 
-  // Select a valid month (or open modal if none)
-  if (!state.month && months.length) state.month = months[0];
+    // If current state.month doesn't exist anymore, fallback
+    if (state.month && !months.includes(state.month) && months.length) {
+      state.month = months[0];
+    }
 
-  // If current state.month doesn't exist anymore, fallback
-  if (state.month && !months.includes(state.month) && months.length) {
-    state.month = months[0];
-  }
+    if (state.month) {
+    picker.value = state.month;
+    } else {
+      // No months yet → open modal immediately
+      picker.value = ADD_MONTH_VALUE;
+      $("#monthInput").value = monthKeyNow();
+      openMonthModal();
+    }
+  } catch (e) {
+    const cached = await dbGet(K_MONTHS());
+    if (cached) {
+      const months = (cached.months || []).slice().sort().reverse();
+      
+      const picker = $("#monthPicker");
+      picker.innerHTML = "";
 
-  if (state.month) {
-  picker.value = state.month;
-  } else {
-    // No months yet → open modal immediately
-    picker.value = ADD_MONTH_VALUE;
-    $("#monthInput").value = monthKeyNow();
-    openMonthModal();
+      months.forEach(mk => {
+        const opt = document.createElement("option");
+        opt.value = mk;
+        opt.textContent = mk;
+        picker.appendChild(opt);
+      });
+
+      const addOpt = document.createElement("option");
+      addOpt.value = ADD_MONTH_VALUE;
+      addOpt.textContent = "+ Add new month…";
+      picker.appendChild(addOpt);
+
+      if (!state.month && months.length) state.month = months[0];
+      if (state.month && !months.includes(state.month) && months.length) {
+        state.month = months[0];
+      }
+      if (state.month) {
+        picker.value = state.month;
+      } else {
+        picker.value = ADD_MONTH_VALUE;
+        $("#monthInput").value = monthKeyNow();
+        openMonthModal();
+      }
+    }
   }
 }
 
 async function loadCategories() {
-  const { categories } = await apiGet("/categories");
-  state.categories = categories;
-  renderCategories();
-  renderTxCategoryOptions();
-  renderRecurringCategoryOptions();
-  renderSuggestedCategories();
-  populateTxCategoryFilter();
+  try {
+    const res = await apiGet("/categories");
+    const { categories } = res;
+    await dbSet(K_CATEGORIES(), res);
+    state.categories = categories;
+    renderCategories();
+    renderTxCategoryOptions();
+    renderRecurringCategoryOptions();
+    renderSuggestedCategories();
+    populateTxCategoryFilter();
+  } catch (e) {
+    const cached = await dbGet(K_CATEGORIES());
+    if (cached) {
+      const categories = cached.categories || [];
+      state.categories = categories;
+      renderCategories();
+      renderTxCategoryOptions();
+      renderRecurringCategoryOptions();
+      renderSuggestedCategories();
+      populateTxCategoryFilter();
+    }
+  }
 }
 
 async function loadTransactions() {
-  const { transactions } = await apiGet(`/transactions?month=${encodeURIComponent(state.month)}`);
-  state.transactions = transactions;
-  renderTransactions();
+  try {
+    const res = await apiGet(`/transactions?month=${encodeURIComponent(state.month)}`);
+    const { transactions } = res;
+    await dbSet(K_TX(state.month), res);
+    state.transactions = transactions;
+    renderTransactions();
+  } catch (e) {
+    const cached = await dbGet(K_TX(state.month));
+    if (cached) {
+      state.transactions = cached.transactions || [];
+      renderTransactions();
+    }
+  }
 }
 
 async function loadSummary() {
-  const s = await apiGet(`/summary?month=${encodeURIComponent(state.month)}`);
+  try {
+    const s = await apiGet(`/summary?month=${encodeURIComponent(state.month)}`);
+    await dbSet(K_SUMMARY(state.month), s);
+    
+    const empty = (s.total_income || 0) === 0 && (s.total_expenses || 0) === 0;
+    document.querySelector(".chartWrap").classList.toggle("empty", empty);
 
-  const empty = (s.total_income || 0) === 0 && (s.total_expenses || 0) === 0;
-  document.querySelector(".chartWrap").classList.toggle("empty", empty);
+    $("#kpiIncome").textContent = fmtKsh(s.total_income);
+    $("#kpiExpenses").textContent = fmtKsh(s.total_expenses);
+    $("#kpiBalance").textContent = fmtKsh(s.balance);
 
-  $("#kpiIncome").textContent = fmtKsh(s.total_income);
-  $("#kpiExpenses").textContent = fmtKsh(s.total_expenses);
-  $("#kpiBalance").textContent = fmtKsh(s.balance);
+    if (s.highest_spend) {
+      $("#kpiTop").textContent = `${s.highest_spend.name}`;
+      $("#kpiTopSub").textContent = `${fmtKsh(s.highest_spend.amount)} (highest expense)`;
+    } else {
+      $("#kpiTop").textContent = "—";
+      $("#kpiTopSub").textContent = "No expense data yet";
+    }
 
-  if (s.highest_spend) {
-    $("#kpiTop").textContent = `${s.highest_spend.name}`;
-    $("#kpiTopSub").textContent = `${fmtKsh(s.highest_spend.amount)} (highest expense)`;
-  } else {
-    $("#kpiTop").textContent = "—";
-    $("#kpiTopSub").textContent = "No expense data yet";
-  }
+    renderBreakdown(s.breakdown);
+    renderTopSpend(s.top_expenses || []);
+    renderChart(s);
 
-  renderBreakdown(s.breakdown);
-  renderTopSpend(s.top_expenses || []);
-  renderChart(s);
-
-  // ===== Savings Goal UI =====
-  const goal = Number(s.savings_goal || 0);
-  const income = Number(s.total_income || 0);
-  const expenses = Number(s.total_expenses || 0);
-  const balance = Number(s.balance || 0);
+    // ===== Savings Goal UI =====
+    const goal = Number(s.savings_goal || 0);
+    const income = Number(s.total_income || 0);
+    const expenses = Number(s.total_expenses || 0);
+    const balance = Number(s.balance || 0);
 
   $("#goalInput").value = goal ? goal : "";
   $("#goalKpi").textContent = fmtKsh(balance);
@@ -779,14 +939,87 @@ async function loadSummary() {
     }
   }
 
-  // Overspending alert
-  const alertEl = $("#overspendAlert");
-  if (expenses > income && (income > 0 || expenses > 0)) {
-    alertEl.hidden = false;
-    alertEl.textContent = `Overspending alert: You spent ${fmtKsh(expenses - income)} more than you earned this month.`;
-  } else {
-    alertEl.hidden = true;
-    alertEl.textContent = "";
+    // Overspending alert
+    const alertEl = $("#overspendAlert");
+    if (expenses > income && (income > 0 || expenses > 0)) {
+      alertEl.hidden = false;
+      alertEl.textContent = `Overspending alert: You spent ${fmtKsh(expenses - income)} more than you earned this month.`;
+    } else {
+      alertEl.hidden = true;
+      alertEl.textContent = "";
+    }
+  } catch (e) {
+    const cached = await dbGet(K_SUMMARY(state.month));
+    if (cached) {
+      const s = cached;
+      const empty = (s.total_income || 0) === 0 && (s.total_expenses || 0) === 0;
+      document.querySelector(".chartWrap").classList.toggle("empty", empty);
+
+      $("#kpiIncome").textContent = fmtKsh(s.total_income || 0);
+      $("#kpiExpenses").textContent = fmtKsh(s.total_expenses || 0);
+      $("#kpiBalance").textContent = fmtKsh(s.balance || 0);
+
+      if (s.highest_spend) {
+        $("#kpiTop").textContent = `${s.highest_spend.name}`;
+        $("#kpiTopSub").textContent = `${fmtKsh(s.highest_spend.amount)} (highest expense)`;
+      } else {
+        $("#kpiTop").textContent = "—";
+        $("#kpiTopSub").textContent = "No expense data yet";
+      }
+
+      renderBreakdown(s.breakdown || []);
+      renderTopSpend(s.top_expenses || []);
+      renderChart(s);
+
+      const goal = Number(s.savings_goal || 0);
+      const income = Number(s.total_income || 0);
+      const expenses = Number(s.total_expenses || 0);
+      const balance = Number(s.balance || 0);
+
+      $("#goalInput").value = goal ? goal : "";
+      $("#goalKpi").textContent = fmtKsh(balance);
+
+      const pct = (goal > 0 && balance > 0) ? Math.min(100, Math.round((balance / goal) * 100)) : 0;
+      $("#goalBar").style.width = pct + "%";
+
+      const goalDisplayEl = $("#goalValue");
+      if (goalDisplayEl) {
+        goalDisplayEl.innerHTML = `
+          <span
+            class="inlineEdit ${goal ? "" : "inlinePlaceholder"}"
+            data-inline-type="goal"
+            data-value="${goal}">
+            ${goal ? fmtKsh(goal) : "Set goal"}
+          </span>
+        `;
+      }
+
+      if (goal <= 0) {
+        $("#goalStatus").textContent = "No goal";
+        $("#goalStatus").className = "chip chipTeal";
+        $("#goalSub").textContent = "Set a goal for this month";
+      } else {
+        const diff = balance - goal;
+        if (diff >= 0) {
+          $("#goalStatus").textContent = `Over by ${fmtKsh(diff)}`;
+          $("#goalStatus").className = "chip chipGreen";
+          $("#goalSub").textContent = `${pct}% of goal reached`;
+        } else {
+          $("#goalStatus").textContent = `Under by ${fmtKsh(Math.abs(diff))}`;
+          $("#goalStatus").className = "chip chipPink";
+          $("#goalSub").textContent = `${pct}% of goal reached`;
+        }
+      }
+
+      const alertEl = $("#overspendAlert");
+      if (expenses > income && (income > 0 || expenses > 0)) {
+        alertEl.hidden = false;
+        alertEl.textContent = `Overspending alert: You spent ${fmtKsh(expenses - income)} more than you earned this month.`;
+      } else {
+        alertEl.hidden = true;
+        alertEl.textContent = "";
+      }
+    }
   }
 }
 
@@ -906,8 +1139,17 @@ function renderTopSpend(top) {
 }
 
 async function loadRecurring() {
-  const { recurring } = await apiGet("/recurring");
-  state.recurringTemplates = recurring || [];
+  try {
+    const res = await apiGet("/recurring");
+    const { recurring } = res;
+    await dbSet(K_RECURRING(), res);
+    state.recurringTemplates = recurring || [];
+  } catch (e) {
+    const cached = await dbGet(K_RECURRING());
+    if (cached) {
+      state.recurringTemplates = cached.recurring || [];
+    }
+  }
 }
 
 function renderRecurringCategoryOptions() {
@@ -1478,8 +1720,16 @@ function escapeHtml(str) {
 }
 
 async function loadTrends(n = 6){
-  const res = await apiGet(`/trends?months=${n}`);
-  state.trends = res.months || [];
+  try {
+    const res = await apiGet(`/trends?months=${n}`);
+    await dbSet(K_TRENDS(n), res);
+    state.trends = res.months || [];
+  } catch (e) {
+    const cached = await dbGet(K_TRENDS(n));
+    if (cached) {
+      state.trends = cached.months || [];
+    }
+  }
 }
 
 function renderTrends(){
@@ -2603,6 +2853,20 @@ function wireUI() {
 }
 
 async function boot() {
+  // Initialize user ID from Supabase session (if available)
+  currentUserId = await getUserId();
+  
+  // Set up auth state change handler (if Supabase is available)
+  if (supabase) {
+    supabase.auth.onAuthStateChange(async (_event, session) => {
+      currentUserId = session?.user?.id || null;
+      // Reload cached data sets for the new user and refresh UI
+      await loadMonths();
+      await loadCategories();
+      await refreshMonth();
+    });
+  }
+  
   wireUI();
   await loadMonths();
   await loadCategories();
