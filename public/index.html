@@ -124,24 +124,11 @@
           </div>
 
           <div class="card dashSide breakdownPanel" id="breakdownCard" data-open-breakdown>
+            <div class="rowBetween">
             <div class="sectionTitle">Breakdown (by category)</div>
-            <div id="breakdownList" class="list"></div>
-
-            <div class="breakdownCharts">
-              <div class="miniChartCard">
-                <div class="miniChartTitle">Expense share</div>
-                <div class="miniCanvas">
-                  <canvas id="bdDonut"></canvas>
-                </div>
-              </div>
-
-              <div class="miniChartCard">
-                <div class="miniChartTitle">Top expense categories</div>
-                <div class="miniCanvas">
-                  <canvas id="bdBar"></canvas>
-                </div>
-              </div>
+              <button id="btnCompare" class="btn btnGhost btnSmall">Compare</button>
             </div>
+            <div id="breakdownList" class="list"></div>
 
             <div class="sectionTitle" style="margin-top:14px;">Top 3 Overspending</div>
             <div id="topSpendList" class="list"></div>
@@ -376,8 +363,6 @@
     </div>
   </div>
 
-  <script src="./app.js"></script>
-
   <!-- Toast notifications -->
   <div id="toastHost" class="toastHost"></div>
 
@@ -420,6 +405,45 @@
     </div>
   </div>
 
+  <!-- Compare Categories Modal -->
+  <div id="compareModal" class="modal hidden" aria-hidden="true">
+    <div class="modalCard modalFull">
+      <div class="rowBetween">
+        <div>
+          <div class="sectionTitle" style="font-size:16px;">Compare categories</div>
+          <div class="small">Expense categories for the selected month.</div>
+        </div>
+        <button id="compareClose" class="btn btnGhost btnSmall" aria-label="Close">✕</button>
+      </div>
+
+      <div class="compareGrid" style="margin-top:14px;">
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Expense Pie</div>
+            <span class="chip chipPink">Expenses</span>
+          </div>
+          <div class="chartWrap">
+            <canvas id="comparePie"></canvas>
+          </div>
+          <div id="compareEmpty" class="small" style="margin-top:10px; display:none;">
+            No expense data for this month.
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Top expense categories</div>
+            <button id="compareReset" class="btn btnGhost btnSmall">Reset</button>
+          </div>
+          <div class="chartWrap">
+            <canvas id="compareBar"></canvas>
+          </div>
+          <div id="compareList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Reusable Confirm Modal (replaces browser confirm) -->
   <div id="confirmModal" class="modal hidden">
     <div class="modalCard">
@@ -436,5 +460,7 @@
       </div>
     </div>
   </div>
+
+  <script src="./app.js"></script>
 </body>
 </html>

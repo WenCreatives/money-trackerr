@@ -871,68 +871,61 @@
   }
 }
 
-/* Full-screen modal behavior on mobile */
+/* Full-screen Breakdown Modal on Mobile */
+@media (max-width: 900px){
+  #breakdownModal .modalCard{
+    width: 100%;
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #breakdownModal .modalHeader{
+    flex: 0 0 auto;
+  }
+
+  #breakdownModal .breakdownBody{
+    flex: 1 1 auto;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  /* inside modal: stack charts */
+  #breakdownModal .grid2{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* slightly smaller charts on mobile modal */
+  #breakdownModal canvas{
+    height: 260px !important;
+  }
+}
+
+/* Full-screen modal behavior */
 .modalFull{
   width: min(1100px, 100%);
   max-height: 92vh;
   overflow: auto;
 }
 
-/* Mobile: modal becomes full screen */
+.compareGrid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
 @media (max-width: 900px){
-  .modal{
-    align-items: stretch;
-    padding: 0;
-  }
   .modalCard.modalFull{
     border-radius: 0;
     height: 100vh;
     max-height: 100vh;
   }
-  .dashGrid{
-    display: grid;
+  .compareGrid{
     grid-template-columns: 1fr;
     gap: 12px;
-  }
-}
-
-/* Desktop: 2 columns inside modal */
-@media (min-width: 901px){
-  .dashGrid{
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-  }
-}
-
-.breakdownCharts{
-  margin-top: 12px;
-  display: grid;
-  grid-template-columns: 1fr;
-  gap: 12px;
-}
-
-.miniChartCard{
-  border: 1px solid rgba(42,42,122,.9);
-  background: rgba(16,24,88,.25);
-  border-radius: 16px;
-  padding: 12px;
-}
-
-.miniChartTitle{
-  font-weight: 900;
-  font-size: 12px;
-  color: var(--muted);
-  margin-bottom: 8px;
-}
-
-.miniCanvas{
-  height: 220px;
-}
-
-@media (min-width: 980px){
-  .breakdownCharts{
-    grid-template-columns: 1fr;
   }
 }
 

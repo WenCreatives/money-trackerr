@@ -26,10 +26,8 @@ let state = {
 };
 
 let trendChart = null;
-let bdDonutChart = null;
-let bdBarChart = null;
-let bdDonutChartModal = null;
-let bdBarChartModal = null;
+let comparePieChart = null;
+let compareBarChart = null;
 
 const ADD_MONTH_VALUE = "__add_month__";
 
@@ -87,39 +85,6 @@ function toastAction(message, type, title, actionText, onAction, ms = 4500) {
 
   setTimeout(kill, ms);
 }
-
-// ---- Center text plugin for donut charts ----
-const CenterTextPlugin = {
-  id: "centerText",
-  afterDraw(chart, args, opts) {
-    const { ctx, chartArea } = chart;
-    if (!chartArea) return;
-
-    const lines = opts?.lines || [];
-    if (!lines.length) return;
-
-    const cx = (chartArea.left + chartArea.right) / 2;
-    const cy = (chartArea.top + chartArea.bottom) / 2;
-
-    ctx.save();
-    ctx.textAlign = "center";
-    ctx.textBaseline = "middle";
-
-    const font1 = opts.font1 || "800 16px system-ui";
-    const font2 = opts.font2 || "700 12px system-ui";
-
-    ctx.font = font1;
-    ctx.fillStyle = opts.color1 || "#F8F8F8";
-    ctx.fillText(lines[0], cx, cy - 8);
-
-    if (lines[1]) {
-      ctx.font = font2;
-      ctx.fillStyle = opts.color2 || "#BFC3E6";
-      ctx.fillText(lines[1], cx, cy + 12);
-    }
-    ctx.restore();
-  }
-};
 
 // ---- Doughnut outside labels + leader lines (Chart.js plugin) ----
 const outsideLabelsPlugin = {
@@ -308,16 +273,19 @@ function isTypingTarget(el){
 
 function closeAnyOpenModal(){
   // Close the top-most known modal (adjust ids if yours differ)
-  const ids = ["confirmModal","breakdownModal","deleteMonthModal","monthModal","modal"];
+  const ids = ["compareModal","confirmModal","breakdownModal","deleteMonthModal","monthModal","modal"];
   for (const id of ids){
     const m = document.getElementById(id);
     if (m && !m.classList.contains("hidden")){
       // try dedicated closers if they exist
-      if (id === "breakdownModal") {
+      if (id === "compareModal") {
         m.classList.add("hidden");
         m.setAttribute("aria-hidden", "true");
+        if(comparePieChart) { comparePieChart.destroy(); comparePieChart = null; }
+        if(compareBarChart) { compareBarChart.destroy(); compareBarChart = null; }
         return;
       }
+      if (id === "breakdownModal" && typeof closeBreakdownModal === "function") return closeBreakdownModal();
       if (id === "deleteMonthModal" && typeof closeDeleteMonthModal === "function") return closeDeleteMonthModal();
       if (id === "monthModal" && typeof closeMonthModal === "function") return closeMonthModal();
       if (id === "modal" && typeof closeModal === "function") return closeModal();
@@ -830,7 +798,6 @@ function renderBreakdown(breakdown) {
     const emptyMsg = `<div class="small">No data yet for this month.</div>`;
     if (el) el.innerHTML = emptyMsg;
     if (modalEl) modalEl.innerHTML = emptyMsg;
-    renderBreakdownCharts(); // still render charts (will show empty state)
     return;
   }
   
@@ -849,165 +816,6 @@ function renderBreakdown(breakdown) {
   
   if (el) el.innerHTML = html;
   if (modalEl) modalEl.innerHTML = html;
-
-  // Render breakdown charts
-  renderBreakdownCharts();
-}
-
-function sumByCategory(transactions, type) {
-  const map = new Map();
-  for (const tx of transactions) {
-    if (tx.category_type !== type) continue;
-    const cat = tx.category_name || "Uncategorized";
-    const amt = Number(tx.amount) || 0;
-    map.set(cat, (map.get(cat) || 0) + amt);
-  }
-  // sort desc by amount
-  return [...map.entries()].sort((a,b) => b[1] - a[1]);
-}
-
-function renderBreakdownCharts() {
-  const css = getComputedStyle(document.documentElement);
-  const PINK = css.getPropertyValue("--pink")?.trim() || "#E82888";
-  const AMBER = css.getPropertyValue("--amber")?.trim() || "#F0A810";
-  const PURP = css.getPropertyValue("--purple")?.trim() || "#7028F8";
-  const TEAL = css.getPropertyValue("--teal")?.trim() || "#58D8B0";
-  const GREEN = css.getPropertyValue("--green")?.trim() || "#08F850";
-
-  const expensePairs = sumByCategory(state.transactions || [], "expense");
-
-  const donutCanvas = document.getElementById("bdDonut");
-  const barCanvas = document.getElementById("bdBar");
-  const donutCanvasModal = document.getElementById("breakdownPie") || document.getElementById("bdDonutModal");
-  const barCanvasModal = document.getElementById("breakdownBars") || document.getElementById("bdBarModal");
-
-  if (!donutCanvas || !barCanvas) return;
-
-  // destroy old charts
-  if (bdDonutChart) bdDonutChart.destroy();
-  if (bdBarChart) bdBarChart.destroy();
-  if (bdDonutChartModal) bdDonutChartModal.destroy();
-  if (bdBarChartModal) bdBarChartModal.destroy();
-
-  if (!expensePairs.length) {
-    const emptyData = { labels: ["No data"], datasets: [{ data: [1], backgroundColor: ["rgba(191,195,230,.15)"], borderWidth: 0, cutout: "70%" }] };
-    const emptyBarData = { labels: ["No data"], datasets: [{ data: [0] }] };
-    const emptyOpts = { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } } };
-
-    bdDonutChart = new Chart(donutCanvas.getContext("2d"), { type: "doughnut", data: emptyData, options: emptyOpts });
-    bdBarChart = new Chart(barCanvas.getContext("2d"), { type: "bar", data: emptyBarData, options: emptyOpts });
-    if (donutCanvasModal) bdDonutChartModal = new Chart(donutCanvasModal.getContext("2d"), { type: "doughnut", data: emptyData, options: emptyOpts });
-    if (barCanvasModal) bdBarChartModal = new Chart(barCanvasModal.getContext("2d"), { type: "bar", data: emptyBarData, options: emptyOpts });
-    return;
-  }
-
-  const labels = expensePairs.map(([c]) => c);
-  const values = expensePairs.map(([,v]) => v);
-  const total = values.reduce((a, b) => a + b, 0);
-
-  // limit bar chart to top 6
-  const topN = 6;
-  const topLabels = labels.slice(0, topN);
-  const topValues = values.slice(0, topN);
-
-  const palette = [PINK, AMBER, PURP, TEAL, GREEN, "#BFC3E6"];
-
-  // Donut: expense share
-  const donutData = {
-    labels,
-    datasets: [{
-      data: values,
-      backgroundColor: labels.map((_,i) => palette[i % palette.length]),
-      borderWidth: 0,
-      hoverOffset: 6
-    }]
-  };
-
-  const donutOpts = {
-    responsive: true,
-    maintainAspectRatio: false,
-    cutout: "68%",
-    layout: { padding: 14 },
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => ` ${ctx.label}: Ksh${Number(ctx.parsed).toLocaleString()}`
-        }
-      },
-      centerText: {
-        lines: ["Expenses", `Ksh${total.toLocaleString()}`],
-        color1: "#F8F8F8",
-        color2: "#BFC3E6"
-      }
-    }
-  };
-
-  bdDonutChart = new Chart(donutCanvas.getContext("2d"), {
-    type: "doughnut",
-    data: donutData,
-    options: donutOpts,
-    plugins: [CenterTextPlugin]
-  });
-
-  if (donutCanvasModal) {
-    bdDonutChartModal = new Chart(donutCanvasModal.getContext("2d"), {
-      type: "doughnut",
-      data: donutData,
-      options: donutOpts,
-      plugins: [CenterTextPlugin]
-    });
-  }
-
-  // Bar: top categories
-  const barData = {
-    labels: topLabels,
-    datasets: [{
-      data: topValues,
-      backgroundColor: "rgba(232,40,136,.35)",
-      borderColor: "rgba(232,40,136,.8)",
-      borderWidth: 1,
-      borderRadius: 10
-    }]
-  };
-
-  const barOpts = {
-    responsive: true,
-    maintainAspectRatio: false,
-    indexAxis: "y",
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        callbacks: {
-          label: (ctx) => ` Ksh${Number(ctx.parsed.x).toLocaleString()}`
-        }
-      }
-    },
-    scales: {
-      x: {
-        ticks: { color: "rgba(191,195,230,.8)", callback: (v) => `Ksh${Number(v).toLocaleString()}` },
-        grid: { color: "rgba(191,195,230,.08)" }
-      },
-      y: {
-        ticks: { color: "rgba(248,248,248,.9)" },
-        grid: { display: false }
-      }
-    }
-  };
-
-  bdBarChart = new Chart(barCanvas.getContext("2d"), {
-    type: "bar",
-    data: barData,
-    options: barOpts
-  });
-
-  if (barCanvasModal) {
-    bdBarChartModal = new Chart(barCanvasModal.getContext("2d"), {
-      type: "bar",
-      data: barData,
-      options: barOpts
-    });
-  }
 }
 
 // ===== Breakdown Modal with Expense Pie Chart =====
@@ -1345,40 +1153,46 @@ function renderChart(summary) {
   };
 
   if (isPie) {
-    // Premium doughnut chart with center text
+    // Premium doughnut chart options with outside labels
     const labels = ["Income", "Expenses"];
     const values = [income, expenses];
-
-    const css = getComputedStyle(document.documentElement);
-    const GREEN = css.getPropertyValue("--green")?.trim() || "#08F850";
-    const PINK = css.getPropertyValue("--pink")?.trim() || "#E82888";
-
-    const total = income + expenses;
-    const pctIn = total ? Math.round((income / total) * 100) : 0;
-    const pctOut = total ? Math.round((expenses / total) * 100) : 0;
+    const colors = ["rgba(8,248,80,.95)", "rgba(232,40,136,.95)"];
 
     const doughnutOpts = {
     responsive: true,
-      maintainAspectRatio: false,
+      maintainAspectRatio: false, // ✅ allow CSS square to control size
     devicePixelRatio: window.devicePixelRatio || 1,
-      cutout: "68%",
-      layout: { padding: 22 }, // key: avoids clipping
+      cutout: "72%", // bigger hole = thinner ring
+      radius: "92%", // a bit smaller so it breathes
+      spacing: 3, // spacing between slices
+
+      // IMPORTANT: extra padding so labels don't get clipped
+      layout: {
+        padding: { top: 20, bottom: 20, left: 90, right: 90 }
+      },
+
     plugins: {
-        legend: { display: false }, // keep UI clean
+        legend: { display: false }, // hide legend since we have breakdown list
       tooltip: {
           callbacks: {
             label: (ctx) => {
-              const label = ctx.label || "";
-              const val = ctx.parsed || 0;
-              const pct = total ? Math.round((val / total) * 100) : 0;
-              return `${label}: Ksh${val.toLocaleString()} (${pct}%)`;
+              const total = values.reduce((a, b) => a + (b || 0), 0) || 0;
+              const v = ctx.raw || 0;
+              const pct = total ? Math.round((v / total) * 100) : 0;
+              return `${ctx.label}: ${fmtKsh(v)} (${pct}%)`;
             }
           }
         },
-        centerText: {
-          lines: [`Total: Ksh${total.toLocaleString()}`, `In ${pctIn}% · Out ${pctOut}%`],
-          color1: "#F8F8F8",
-          color2: "#BFC3E6"
+        // ✅ outside labels ON for Income vs Expenses (2 slices)
+        outsideLabels: {
+          enabled: true,
+          mode: "both",      // label + value + percent
+          minPercent: 0,     // show both labels always (only 2 slices)
+          fontSize: 12,
+          lineColor: "rgba(191,195,230,.35)",
+          padding: 10,
+          lineLen: 18,
+          elbowLen: 18
         }
       },
       animation: { duration: 650 }
@@ -1389,9 +1203,8 @@ function renderChart(summary) {
       labels,
       datasets: [{
         data: values,
-        backgroundColor: [GREEN, PINK],
-        borderWidth: 0,
-        hoverOffset: 6
+        backgroundColor: colors,
+        borderWidth: 0
       }]
   };
 
@@ -1399,7 +1212,7 @@ function renderChart(summary) {
       type: "doughnut",
       data: doughnutData,
       options: doughnutOpts,
-      plugins: [CenterTextPlugin]
+      plugins: [outsideLabelsPlugin] // ✅ attach plugin here
     });
   } else {
     // Bar chart options
@@ -2481,49 +2294,263 @@ function wireUI() {
     }
   });
 
-  // --- Mobile Breakdown Modal wiring ---
-  const breakdownModal = document.getElementById("breakdownModal");
-  const breakdownClose = document.getElementById("breakdownClose");
+  // Breakdown modal close button
+  document.getElementById("breakdownClose")?.addEventListener("click", () => {
+    document.getElementById("breakdownModal")?.classList.add("hidden");
+  });
 
-  function openBreakdownModal() {
-    if (!breakdownModal) return;
-    breakdownModal.classList.remove("hidden");
-    breakdownModal.setAttribute("aria-hidden", "false");
+  // Mobile: tap Breakdown card -> open breakdown modal
+  document.addEventListener("click", (e) => {
+    // Don't trigger if clicking the Compare button
+    if (e.target.closest?.("#btnCompare")) return;
+    
+    const breakdownCard = e.target.closest?.("#breakdownCard, [data-open-breakdown], .breakdownCard");
+    if (!breakdownCard) return;
 
-    // If you already have a function that draws breakdown charts, call it here:
-    if (typeof renderBreakdownModal === "function") {
-      renderBreakdownModal(); // <-- create/keep your own chart rendering function
+    if (isMobile()) {
+      e.preventDefault();
+      const m = document.getElementById("breakdownModal");
+      if (m) {
+        m.classList.remove("hidden");
+        // Copy breakdown list content to modal
+        const originalList = document.getElementById("breakdownList");
+        const modalList = document.getElementById("breakdownListModal");
+        if (originalList && modalList) {
+          modalList.innerHTML = originalList.innerHTML;
+        }
+      }
+    }
+  });
+
+  // ---- Compare modal (categories charts) ----
+  const compareModal = document.getElementById("compareModal");
+  const btnCompare = document.getElementById("btnCompare");
+  const compareClose = document.getElementById("compareClose");
+  const compareReset = document.getElementById("compareReset");
+
+  function openCompareModal(){
+    if(!compareModal) {
+      console.error("compareModal element not found");
+      return;
+    }
+    if(!state.month) {
+      console.error("No month selected");
+      return;
+    }
+    try {
+      compareModal.classList.remove("hidden");
+      compareModal.setAttribute("aria-hidden", "false");
+      renderCompareCharts(state.month);
+    } catch(err) {
+      console.error("Error opening compare modal:", err);
+      compareModal.classList.add("hidden");
+    }
+  }
+
+  function closeCompareModal(){
+    if(!compareModal) return;
+    compareModal.classList.add("hidden");
+    compareModal.setAttribute("aria-hidden", "true");
+    // Destroy charts when closing
+    if(comparePieChart) {
+      comparePieChart.destroy();
+      comparePieChart = null;
+    }
+    if(compareBarChart) {
+      compareBarChart.destroy();
+      compareBarChart = null;
+    }
+  }
+
+  if (btnCompare) {
+    btnCompare.addEventListener("click", (e) => {
+      e.stopPropagation(); // Prevent triggering breakdown card click
+      e.preventDefault();
+      console.log("Compare button clicked");
+      openCompareModal();
+    });
+  } else {
+    console.warn("btnCompare button not found");
+  }
+  if (compareClose) {
+    compareClose.addEventListener("click", closeCompareModal);
+  }
+  if (compareModal) {
+    compareModal.addEventListener("click", (e) => {
+      if (e.target === compareModal) closeCompareModal();
+    });
+  }
+  // Note: Escape key is handled by the main keyboard shortcuts handler above
+
+  // Helpers: sum expenses by category from transactions
+  function sumExpensesByCategory(txs){
+    const map = new Map();
+    for(const t of txs){
+      if((t.category_type || "").toLowerCase() !== "expense") continue;
+      const cat = t.category_name || "Uncategorized";
+      const amt = Number(t.amount) || 0;
+      map.set(cat, (map.get(cat) || 0) + amt);
+    }
+    return [...map.entries()].sort((a,b) => b[1] - a[1]);
+  }
+
+  function renderCompareCharts(monthKey){
+    if(!monthKey) {
+      console.error("renderCompareCharts: monthKey is required");
+      return;
+    }
+    try {
+      // Filter transactions for the selected month
+      const txs = (state.transactions || []).filter(t => {
+        const txMonth = (t.tdate || "").slice(0, 7); // YYYY-MM
+        return txMonth === monthKey;
+      });
+      const pairs = sumExpensesByCategory(txs);
+
+      const pieEl = document.getElementById("comparePie");
+      const barEl = document.getElementById("compareBar");
+      const listEl = document.getElementById("compareList");
+      const emptyEl = document.getElementById("compareEmpty");
+
+      if(!pieEl || !barEl) {
+        console.error("Chart canvas elements not found");
+        return;
+      }
+
+    // Destroy old charts
+    if(comparePieChart) comparePieChart.destroy();
+    if(compareBarChart) compareBarChart.destroy();
+
+    if(listEl) listEl.innerHTML = "";
+
+    if(!pairs.length){
+      if(emptyEl) emptyEl.style.display = "block";
+      comparePieChart = new Chart(pieEl.getContext("2d"), {
+        type: "doughnut",
+        data: { labels: ["No data"], datasets: [{ data: [1], backgroundColor: ["rgba(191,195,230,.15)"], borderWidth: 0, cutout: "70%" }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+      });
+      compareBarChart = new Chart(barEl.getContext("2d"), {
+        type: "bar",
+        data: { labels: ["No data"], datasets: [{ data: [0] }] },
+        options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false }, tooltip: { enabled: false } } }
+      });
+      return;
     } else {
-      // Fallback: render breakdown charts
-      renderBreakdownCharts();
+      if(emptyEl) emptyEl.style.display = "none";
+    }
+
+    const labels = pairs.map(([c]) => c);
+    const values = pairs.map(([,v]) => v);
+    const total = values.reduce((a,b)=>a+b,0);
+
+    // Colors from CSS variables if available
+    const css = getComputedStyle(document.documentElement);
+    const PINK  = css.getPropertyValue("--pink")?.trim()  || "#E82888";
+    const AMBER = css.getPropertyValue("--amber")?.trim() || "#F0A810";
+    const PURP  = css.getPropertyValue("--purple")?.trim()|| "#7028F8";
+    const TEAL  = css.getPropertyValue("--teal")?.trim()  || "#58D8B0";
+    const GREEN = css.getPropertyValue("--green")?.trim() || "#08F850";
+    const palette = [PINK, AMBER, PURP, TEAL, GREEN, "#BFC3E6"];
+
+    // Pie/Donut chart
+    comparePieChart = new Chart(pieEl.getContext("2d"), {
+      type: "doughnut",
+      data: {
+        labels,
+        datasets: [{
+          data: values,
+          backgroundColor: labels.map((_,i) => palette[i % palette.length]),
+          borderWidth: 0,
+          hoverOffset: 6,
+          cutout: "68%"
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        layout: { padding: 14 },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => {
+                const v = Number(ctx.parsed) || 0;
+                const pct = total ? Math.round((v / total) * 100) : 0;
+                return ` ${ctx.label}: ${fmtKsh(v)} (${pct}%)`;
+              }
+            }
+          }
+        }
+      }
+    });
+
+    // Bar chart (top 8)
+    const topN = 8;
+    const topLabels = labels.slice(0, topN);
+    const topValues = values.slice(0, topN);
+
+    compareBarChart = new Chart(barEl.getContext("2d"), {
+      type: "bar",
+      data: {
+        labels: topLabels,
+        datasets: [{
+          data: topValues,
+          backgroundColor: "rgba(232,40,136,.35)",
+          borderColor: "rgba(232,40,136,.8)",
+          borderWidth: 1,
+          borderRadius: 10
+        }]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        indexAxis: "y",
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            callbacks: {
+              label: (ctx) => ` ${fmtKsh(Number(ctx.parsed.x))}`
+            }
+          }
+        },
+        scales: {
+          x: {
+            ticks: { color: "rgba(191,195,230,.85)", callback: (v) => fmtKsh(v) },
+            grid: { color: "rgba(191,195,230,.08)" }
+          },
+          y: {
+            ticks: { color: "rgba(248,248,248,.9)" },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+
+    // Build clickable list (optional drill-down hook)
+    if(listEl){
+      pairs.slice(0, 12).forEach(([cat, amt], idx) => {
+        const pct = total ? Math.round((amt / total) * 100) : 0;
+        const row = document.createElement("div");
+        row.className = "item";
+        row.style.cursor = "pointer";
+        row.innerHTML = `
+          <div class="itemLeft">
+            <div class="itemTitle">${idx+1}. ${cat}</div>
+            <div class="itemSub">${pct}% of expenses</div>
+          </div>
+          <div class="itemAmt">${fmtKsh(amt)}</div>
+        `;
+        row.addEventListener("click", () => {
+          if (typeof toast === "function") toast(`Showing ${cat}`, "ok");
+        });
+        listEl.appendChild(row);
+      });
+    }
+    } catch(err) {
+      console.error("Error rendering compare charts:", err);
     }
   }
-
-  function closeBreakdownModal() {
-    if (!breakdownModal) return;
-    breakdownModal.classList.add("hidden");
-    breakdownModal.setAttribute("aria-hidden", "true");
-  }
-
-  // Close actions
-  breakdownClose?.addEventListener("click", closeBreakdownModal);
-  breakdownModal?.addEventListener("click", (e) => {
-    if (e.target === breakdownModal) closeBreakdownModal();
-  });
-  window.addEventListener("keydown", (e) => {
-    if (e.key === "Escape" && breakdownModal && !breakdownModal.classList.contains("hidden")) {
-      closeBreakdownModal();
-    }
-  });
-
-  // Make the right-panel Breakdown open modal on mobile
-  const breakdownPanel = document.querySelector(".breakdownPanel") || document.getElementById("breakdownPanel");
-
-  breakdownPanel?.addEventListener("click", (e) => {
-    if (!isMobile()) return;       // desktop stays normal
-    e.preventDefault();
-    openBreakdownModal();
-  });
 
   // Inline editing: goal and budget
   document.addEventListener("click", (e) => {
