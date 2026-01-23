@@ -1,0 +1,502 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Monthly Money Tracker</title>
+  <link rel="stylesheet" href="./styles.css"/>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <div class="app">
+    <header class="topbar">
+      <!-- Welcome block - primary header -->
+      <div class="welcome-block">
+        <div class="welcome-texts">
+          <div id="welcomeLine" class="welcome-line">Welcome back 👋</div>
+          <div id="welcomeSub" class="welcome-sub">Here's your monthly overview.</div>
+        </div>
+
+        <button id="changeNameBtn" class="welcome-btn" type="button" title="Change display name">
+          Change
+        </button>
+      </div>
+
+      <div class="monthRow">
+        <div class="monthPickerWrap">
+          <select id="monthPicker" class="select"></select>
+        </div>
+        <div class="menu">
+          <button id="exportMenuBtn" class="btn btnGhost btnSmall" type="button" aria-haspopup="true" aria-expanded="false">
+            Export ▾
+          </button>
+
+          <div id="exportMenu" class="menuPanel" role="menu">
+            <button id="exportJsonItem" class="menuItem" type="button" role="menuitem">Export JSON</button>
+            <button id="exportCsvItem" class="menuItem" type="button" role="menuitem">Export CSV</button>
+          </div>
+        </div>
+        <button id="btnImportJson" class="btn btnGhost btnSmall" type="button">Import JSON</button>
+        <input id="importJsonFile" type="file" accept="application/json" style="display:none;">
+        <button id="btnDemo" class="btn btnGhost btnSmall" type="button">Load demo data</button>
+        <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
+      </div>
+    </header>
+
+    <nav class="tabs">
+      <button class="tab active" data-tab="dashboard">Dashboard</button>
+      <button class="tab" data-tab="transactions">Transactions</button>
+      <button class="tab" data-tab="categories">Categories</button>
+      <button class="tab" data-tab="trends" id="tabTrends">Trends</button>
+    </nav>
+
+    <main class="content">
+      <!-- DASHBOARD -->
+      <section id="dashboard" class="panel show">
+        <div class="grid2">
+          <div class="card">
+            <div class="cardHead">
+              <span>Total Income</span>
+              <span class="chip chipGreen">IN</span>
+            </div>
+            <div class="kpi" id="kpiIncome">Ksh0</div>
+            <div class="small">Money coming in</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Total Expenses</span>
+              <span class="chip chipPink">OUT</span>
+            </div>
+            <div class="kpi" id="kpiExpenses">Ksh0</div>
+            <div class="small">Money going out</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Balance</span>
+              <span class="chip chipTeal">LEFT</span>
+            </div>
+            <div class="kpi" id="kpiBalance">Ksh0</div>
+            <div class="small">Income - Expenses</div>
+          </div>
+
+          <div class="card">
+            <div class="cardHead">
+              <span>Highest Spend</span>
+              <span class="chip chipPurple">TOP</span>
+            </div>
+            <div class="kpi" id="kpiTop">—</div>
+            <div class="small" id="kpiTopSub">No expense data yet</div>
+          </div>
+        </div>
+
+        <div class="card goalCard">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Savings Goal</div>
+              <div class="small" id="goalSub">Set a goal for this month</div>
+            </div>
+
+            <div class="goalActions">
+              <input id="goalInput" class="input goalInput" type="number" min="0" step="1" placeholder="Goal (Ksh)">
+              <button id="saveGoalBtn" class="btn btnSmall">Save</button>
+            </div>
+          </div>
+
+          <div class="progress">
+            <div class="progressBar" id="goalBar"></div>
+          </div>
+
+          <div class="rowBetween" style="margin-top:10px;">
+            <div class="small">Goal: <span id="goalValue"></span></div>
+            <div class="chip chipTeal" id="goalStatus">—</div>
+          </div>
+          <div class="kpi" id="goalKpi">Ksh0</div>
+
+          <div id="overspendAlert" class="alert" hidden></div>
+        </div>
+
+        <div class="dashGrid">
+          <div class="card chartCard dashMain">
+            <div class="rowBetween">
+              <div>
+                <div class="sectionTitle">Income vs Expenses</div>
+                <div class="small">Switch chart mode to reduce congestion</div>
+              </div>
+              <div class="toggle">
+                <button id="quickIncomeBtn" class="btn btnSmall">+ Income</button>
+                <button id="quickExpenseBtn" class="btn btnSmall btnGhost">+ Expense</button>
+                <button id="pieBtn" class="btn btnSmall btnActive">Pie</button>
+                <button id="barBtn" class="btn btnSmall">Bar</button>
+              </div>
+            </div>
+
+            <div class="chartWrap">
+              <canvas id="mainChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card dashSide breakdownPanel" id="breakdownCard" data-open-breakdown>
+            <div class="rowBetween">
+            <div class="sectionTitle">Breakdown (by category)</div>
+              <button id="btnCompare" class="btn btnGhost btnSmall">Compare</button>
+            </div>
+            <div id="breakdownList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Top 3 Overspending</div>
+            <div id="topSpendList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Budget Alerts</div>
+            <div id="budgetAlertList" class="list"></div>
+
+            <div class="sectionTitle" style="margin-top:14px;">Budgets at a glance</div>
+            <div id="budgetSnapshot" class="list"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRENDS -->
+      <section id="trends" class="panel">
+        <div class="grid2">
+          <div class="card">
+            <div class="rowBetween">
+              <div>
+                <div class="sectionTitle">12-Month Trend</div>
+                <div class="small">Income vs Expenses + Balance + Goal</div>
+              </div>
+
+              <div style="display:flex; gap:10px;">
+                <button id="trendModeIE" class="pill active" type="button">Income/Expenses</button>
+                <button id="trendModeBal" class="pill" type="button">Balance/Goal</button>
+                <button id="btnTrendExportCsv" class="btn btnGhost btnSmall" type="button">Export CSV</button>
+              </div>
+            </div>
+
+            <div class="chartWrap" style="margin-top:12px;">
+              <canvas id="trendChart"></canvas>
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="sectionTitle">Summary</div>
+            <div class="small">Click a month row to jump to it.</div>
+            <div id="trendTable" class="list" style="margin-top:12px;"></div>
+          </div>
+        </div>
+      </section>
+
+      <!-- TRANSACTIONS -->
+      <section id="transactions" class="panel">
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Transactions</div>
+              <div class="small">Recorded for the selected month only</div>
+            </div>
+            <button id="addTxBtn" class="btn">+ Add</button>
+          </div>
+
+          <div class="filters">
+            <button class="pill active" data-filter="all">All</button>
+            <button class="pill" data-filter="income">Income</button>
+            <button class="pill" data-filter="expense">Expense</button>
+          </div>
+
+          <div class="filters" style="flex-wrap:wrap; margin-top:12px;">
+            <input id="txSearch" class="input" placeholder="Search note or category…" style="flex:2; min-width:220px;">
+            <select id="txCatFilter" class="select" style="flex:1; min-width:180px;">
+              <option value="">All categories</option>
+            </select>
+            <input id="txMin" class="input" type="number" min="0" placeholder="Min" style="width:120px;">
+            <input id="txMax" class="input" type="number" min="0" placeholder="Max" style="width:120px;">
+            <input id="txFrom" class="input" type="date" style="width:160px;">
+            <input id="txTo" class="input" type="date" style="width:160px;">
+            <button id="txClearFilters" class="btn btnGhost btnSmall" type="button">Clear</button>
+          </div>
+
+          <div id="txList" class="list"></div>
+        </div>
+      </section>
+
+      <!-- CATEGORIES -->
+      <section id="categories" class="panel">
+        <div class="card">
+          <div class="rowBetween">
+            <div>
+              <div class="sectionTitle">Categories</div>
+              <div class="small">Custom income + expense categories</div>
+            </div>
+          </div>
+
+          <form id="catForm" class="form">
+            <input id="catName" class="input" placeholder="Category name (e.g. Transport)" required />
+            <select id="catType" class="select">
+              <option value="expense">Expense</option>
+              <option value="income">Income</option>
+            </select>
+            <select id="catColor" class="select">
+              <option value="#08F850">Neon Green</option>
+              <option value="#58D8B0">Teal</option>
+              <option value="#E82888">Pink</option>
+              <option value="#7028F8">Purple</option>
+              <option value="#F0A810">Amber</option>
+              <option value="#E02020">Red</option>
+            </select>
+            <button class="btn" type="submit">Add Category</button>
+          </form>
+
+          <div id="catList" class="list"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Suggested Categories</div>
+          <div class="small">One click to add common categories.</div>
+          <div id="suggestCatRow" class="suggestRow"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Recurring Monthly Transactions</div>
+          <div class="small">Create templates once — they can be applied automatically when you add a month.</div>
+
+          <form id="recurringForm" class="form" style="grid-template-columns: 2fr 1fr 1fr 2fr auto;">
+            <select id="recCat" class="select" required></select>
+            <input id="recAmount" class="input" type="number" min="0" step="1" placeholder="Amount">
+            <input id="recDay" class="input" type="number" min="1" max="31" step="1" value="1" required>
+            <input id="recNote" class="input" placeholder="Note (e.g. Rent / Salary)">
+            <button class="btn" type="submit">Add</button>
+          </form>
+
+          <label class="checkRow" style="margin-top:10px;">
+            <input id="recVariable" type="checkbox">
+            <span>Variable amount (enter when applying)</span>
+          </label>
+
+          <div class="sectionTitle" style="margin-top:14px;">Suggested Recurring</div>
+          <div id="suggestRecRow" class="suggestRow"></div>
+
+          <div id="recurringList" class="list"></div>
+
+          <div class="sectionTitle" style="margin-top:18px;">Monthly Budgets (Expenses)</div>
+          <div class="small">Budgets are per selected month. Alerts show at 80% and 100%.</div>
+          <div id="budgetList" class="list"></div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <!-- MODAL: Add Transaction -->
+  <div id="modal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle" id="txModalTitle">Add Transaction</div>
+        <button id="closeModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <form id="txForm" class="form">
+        <select id="txCategory" class="select" required></select>
+        <input id="txAmount" class="input" type="number" min="1" step="1" placeholder="Amount (Ksh)" required />
+        <input id="txDate" class="input" type="date" required />
+        <input id="txNote" class="input" placeholder="Note (optional)" />
+        <div style="display:flex; gap:10px;">
+          <button id="txCancelEdit" class="btn btnGhost" type="button" style="display:none;">Cancel edit</button>
+          <button id="txSubmitBtn" class="btn" type="submit">Save</button>
+        </div>
+      </form>
+      <div class="small hint">Tip: Expenses reduce balance; income increases it.</div>
+    </div>
+  </div>
+
+  <!-- MODAL: Add Month -->
+  <div id="monthModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Add Month</div>
+        <button id="closeMonthModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" style="margin-top:8px;">Choose a month (no overlaps — each month is independent).</div>
+
+      <form id="monthForm" class="form" style="grid-template-columns: 1fr auto; margin-top:12px;">
+        <input id="monthInput" class="input" type="month" required />
+        <button class="btn" type="submit">Add</button>
+      </form>
+
+      <label class="checkRow" style="margin-top:10px;">
+        <input id="copyBudgetsCheck" type="checkbox">
+        <span>Copy budgets from previous month</span>
+      </label>
+      <div class="small" id="copyBudgetsHint" style="margin-top:6px; display:none;"></div>
+
+      <label class="checkRow" style="margin-top:10px;">
+        <input id="applyRecurringCheck" type="checkbox" checked>
+        <span>Apply recurring transactions (salary/rent/subscriptions)</span>
+      </label>
+      <div class="small" id="applyRecurringHint" style="margin-top:6px;"></div>
+
+      <div id="applyRecurringBox" class="card" style="margin-top:12px;">
+        <div class="sectionTitle">Recurring to apply</div>
+        <div class="small">Edit amounts before applying. Variable templates require you to enter an amount.</div>
+        <div class="filters" style="margin-top:10px;">
+          <button id="recFilterAll" class="pill active" type="button">All</button>
+          <button id="recFilterIncome" class="pill" type="button">Income only</button>
+          <button id="recFilterExpense" class="pill" type="button">Expense only</button>
+        </div>
+        <div class="rowBetween" style="margin-top:10px;">
+          <div class="small">Select templates to apply</div>
+          <div style="display:flex;gap:10px;">
+            <button id="recSelectAll" class="btn btnGhost btnSmall" type="button">Select all</button>
+            <button id="recSelectNone" class="btn btnGhost btnSmall" type="button">Clear</button>
+          </div>
+        </div>
+        <div id="applyRecurringList" class="list"></div>
+      </div>
+
+      <div class="small hint">Tip: you can jump between months using the picker.</div>
+    </div>
+  </div>
+
+  <!-- MODAL: Delete Month -->
+  <div id="deleteMonthModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Delete Month</div>
+        <button id="closeDeleteMonthModal" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" style="margin-top:12px; color: #ffd6d6;">
+        <b>Warning:</b> This will permanently delete all transactions, goals, and data for <span id="delMonthLabel">—</span>. This action cannot be undone.
+      </div>
+
+      <div class="small" style="margin-top:12px;">
+        Type <b id="delMonthNeed">—</b> to confirm:
+      </div>
+
+      <input id="delMonthInput" class="input" placeholder="YYYY-MM" autocomplete="off" style="margin-top:8px;">
+
+      <div style="display:flex; gap:10px; margin-top:14px; justify-content:flex-end;">
+        <button id="cancelDeleteMonth" class="btn btnGhost">Cancel</button>
+        <button id="confirmDeleteMonth" class="btn" style="background: linear-gradient(135deg, rgba(224,32,32,.95), rgba(232,40,136,.9));">Yes, delete</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast notifications -->
+  <div id="toastHost" class="toastHost"></div>
+
+  <!-- Breakdown Modal (mobile-first) -->
+  <div id="breakdownModal" class="modal hidden" aria-hidden="true">
+    <div class="modalCard modalFull">
+      <div class="rowBetween">
+        <div>
+          <div class="sectionTitle" style="font-size:16px;">Breakdown (by category)</div>
+          <div class="small">Tap a category to drill down.</div>
+        </div>
+        <button id="breakdownClose" class="btn btnGhost btnSmall" aria-label="Close">✕</button>
+      </div>
+
+      <div class="dashGrid" style="margin-top:14px;">
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Expense Pie</div>
+            <span id="breakdownScope" class="chip chipPink">All expenses</span>
+          </div>
+          <div class="chartWrap">
+            <canvas id="breakdownPie"></canvas>
+          </div>
+          <div id="breakdownEmpty" class="small" style="margin-top:10px; display:none;">
+            No expense data for this month.
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Top expense categories</div>
+            <button id="breakdownReset" class="btn btnGhost btnSmall">Reset</button>
+          </div>
+          <div class="chartWrap">
+            <canvas id="breakdownBars"></canvas>
+          </div>
+          <div id="breakdownListModal" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Compare Categories Modal -->
+  <div id="compareModal" class="modal hidden" aria-hidden="true">
+    <div class="modalCard modalFull">
+      <div class="rowBetween">
+        <div>
+          <div class="sectionTitle" style="font-size:16px;">Compare categories</div>
+          <div class="small">Expense categories for the selected month.</div>
+        </div>
+        <button id="compareClose" class="btn btnGhost btnSmall" aria-label="Close">✕</button>
+      </div>
+
+      <div class="compareGrid" style="margin-top:14px;">
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Expense Pie</div>
+            <span class="chip chipPink">Expenses</span>
+          </div>
+          <div class="chartWrap">
+            <canvas id="comparePie"></canvas>
+          </div>
+          <div id="compareEmpty" class="small" style="margin-top:10px; display:none;">
+            No expense data for this month.
+          </div>
+        </div>
+
+        <div class="card" style="margin:0;">
+          <div class="rowBetween">
+            <div class="sectionTitle">Top expense categories</div>
+            <button id="compareReset" class="btn btnGhost btnSmall">Reset</button>
+          </div>
+          <div class="chartWrap">
+            <canvas id="compareBar"></canvas>
+          </div>
+          <div id="compareList" class="list"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Name Change Modal -->
+  <div id="nameChangeModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle">Update your display name</div>
+        <button id="nameChangeClose" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" style="margin-top:10px; margin-bottom:14px;">
+        What should we call you? (max 20 characters)
+      </div>
+
+      <form id="nameChangeForm" class="form" style="grid-template-columns: 1fr; margin-top:0;">
+        <input id="nameChangeInput" class="input" type="text" placeholder="Enter your name" maxlength="20" autofocus />
+        <div style="display:flex; gap:10px; margin-top:14px;">
+          <button id="nameChangeCancel" class="btn btnGhost" type="button">Cancel</button>
+          <button id="nameChangeSave" class="btn" type="submit">Save</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <!-- Reusable Confirm Modal (replaces browser confirm) -->
+  <div id="confirmModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div class="sectionTitle" id="confirmTitle">Confirm</div>
+        <button id="confirmClose" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div class="small" id="confirmMessage" style="margin-top:10px;"></div>
+
+      <div class="rowBetween" style="margin-top:14px;">
+        <button id="confirmCancel" class="btn btnGhost">Cancel</button>
+        <button id="confirmOk" class="btn btnDangerSolid">Yes</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="./app.js"></script>
+</body>
+</html>

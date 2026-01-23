@@ -1,0 +1,1199 @@
+:root{
+    --bg:#101858;
+    --surface:#181860;
+    --surface-2:#1F1F6A;
+    --border:#2A2A7A;
+  
+    --text:#F8F8F8;
+    --text-soft:#F8E0F0;
+    --muted:#BFC3E6;
+  
+    --green:#08F850;
+    --teal:#58D8B0;
+    --pink:#E82888;
+    --purple:#7028F8;
+    --amber:#F0A810;
+    --red:#E02020;
+  }
+  
+  *{ box-sizing:border-box; }
+  html,body{ height:100%; }
+  
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+    background:
+      radial-gradient(1200px 600px at 30% -10%, rgba(112,40,248,.25), transparent 60%),
+      radial-gradient(1000px 700px at 110% 10%, rgba(232,40,136,.18), transparent 55%),
+      var(--bg);
+    color:var(--text);
+  }
+  
+  .app{
+    max-width: 1320px;
+    margin: 0 auto;
+    padding: 28px 26px 40px;
+  }
+  
+  .topbar{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    padding: 10px 4px 6px;
+  }
+
+/* --- TOPBAR LAYOUT FIX (desktop) --- */
+.topbar{
+  display:flex;
+  flex-direction: row;
+  align-items:center;
+  justify-content:space-between;
+  gap: 14px;
+  width: 100%;
+}
+  
+  .brand{
+    display:flex;
+    align-items:center;
+    gap:14px;
+  }
+  
+  .logo{
+    width:46px; height:46px;
+    border-radius:16px;
+    background: linear-gradient(135deg, rgba(8,248,80,.9), rgba(112,40,248,.9));
+    box-shadow: 0 10px 26px rgba(0,0,0,.25);
+  }
+  
+  .title{
+    font-weight: 1000;
+    letter-spacing:.2px;
+    font-size: 20px;
+  }
+  
+  .subtitle{
+    color:var(--muted);
+    font-size:12px;
+    margin-top:2px;
+  }
+  
+  .monthRow{
+    flex: 0 0 auto;
+    display:flex;
+    align-items:center;
+    gap: 10px;
+    flex-wrap: nowrap;
+  }
+  
+  .tabs{
+    margin-top: 14px;
+    display:flex;
+    gap:12px;
+    padding: 10px 2px;
+  }
+  
+  .tab{
+    flex:1;
+    padding: 13px 12px;
+    border-radius: 16px;
+    border: 1px solid rgba(42,42,122,.9);
+    background: rgba(24,24,96,.7);
+    color: var(--text);
+    font-weight: 900;
+    cursor:pointer;
+  }
+  
+  .tab.active{
+    border-color: rgba(8,248,80,.65);
+    box-shadow: 0 12px 30px rgba(0,0,0,.22);
+  }
+  
+  .content{ margin-top: 10px; }
+  
+  .panel{ display:none; }
+  .panel.show{ display:block; }
+  
+  /* Desktop-first: 2 columns by default */
+  .grid2{
+    display:grid;
+    grid-template-columns: 1fr 1fr;
+    gap:16px;
+  }
+  @media(max-width: 900px){
+    .grid2{ grid-template-columns: 1fr; }
+  }
+  
+  .card{
+    background: rgba(24,24,96,.9);
+    border: 1px solid rgba(42,42,122,.9);
+    border-radius: 20px;
+    padding: 18px;
+    box-shadow: 0 16px 34px rgba(0,0,0,.2);
+  }
+  
+  .cardHead{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    color: var(--muted);
+    font-weight: 900;
+    font-size: 12px;
+    letter-spacing:.2px;
+  }
+  
+  .kpi{
+    margin-top: 12px;
+    font-size: 30px;
+    font-weight: 1000;
+    color: var(--text-soft);
+  }
+  
+  .small{
+    color: var(--muted);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+  
+  .sectionTitle{
+    font-weight: 1000;
+    font-size: 14px;
+    letter-spacing:.2px;
+  }
+  
+  .rowBetween{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+  }
+  
+  .chartCard{ margin-top: 14px; }
+  
+  .chartWrap{
+    margin-top: 14px;
+    background: rgba(16,24,88,.35);
+    border: 1px dashed rgba(191,195,230,.25);
+    border-radius: 18px;
+    padding: 14px;
+  position: relative;
+}
+
+/* Square container for pie/doughnut charts */
+.chartWrap[data-chart-mode="pie"]{
+  width: 100%;
+  max-width: 560px;
+  aspect-ratio: 1 / 1;
+  margin: 0 auto;
+}
+
+.chartWrap[data-chart-mode="pie"] canvas,
+.chartWrap[data-chart-mode="pie"] svg{
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* Bar charts keep rectangular shape */
+.chartWrap[data-chart-mode="bar"] canvas{
+  width:100% !important;
+  height:380px !important;
+}
+
+/* Fallback for when data attribute isn't set yet */
+  canvas{
+    width:100% !important;
+    height:380px !important;
+  }
+
+.chartWrap.empty{
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  min-height: 360px;
+}
+.chartWrap.empty::after{
+  content:"Add transactions to see your chart.";
+  color: rgba(191,195,230,.85);
+  font-weight: 900;
+  font-size: 13px;
+}
+.chartWrap.empty canvas{
+  display:none !important;
+  }
+  
+  /* Buttons */
+  .btn{
+    border:none;
+    background: linear-gradient(135deg, rgba(8,248,80,.95), rgba(88,216,176,.9));
+    color: #07102d;
+    font-weight: 1000;
+    padding: 12px 14px;
+    border-radius: 14px;
+    cursor:pointer;
+  }
+  .btn:hover{ filter: brightness(1.06); }
+  
+  .btnGhost{
+    background: rgba(24,24,96,.7);
+    color: var(--text);
+    border: 1px solid rgba(42,42,122,.9);
+  }
+  
+  .btnSmall{
+    padding: 9px 12px;
+    border-radius: 12px;
+  }
+  
+  .btnActive{
+    border: 1px solid rgba(8,248,80,.6);
+    box-shadow: 0 10px 24px rgba(0,0,0,.18);
+  }
+  
+  /* Inputs */
+  .select, .input{
+    width: 100%;
+    padding: 12px 12px;
+    border-radius: 14px;
+    border: 1px solid rgba(42,42,122,.9);
+    background: rgba(24,24,96,.7);
+    color: var(--text);
+    outline: none;
+  }
+  .select{ cursor:pointer; }
+  
+  .form{
+    margin-top: 14px;
+    display:grid;
+    grid-template-columns: 1fr;
+    gap:12px;
+  }
+  @media(min-width: 980px){
+    .form{ grid-template-columns: 2fr 1fr 1fr 1fr; }
+    #txForm{ grid-template-columns: 2fr 1fr 1fr 2fr; }
+  }
+  
+  /* Lists */
+  .list{
+    margin-top: 14px;
+    display:flex;
+    flex-direction:column;
+    gap:12px;
+  }
+  
+  .item{
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    gap:12px;
+    padding: 14px;
+    border-radius: 18px;
+    border: 1px solid rgba(42,42,122,.9);
+    background: rgba(16,24,88,.35);
+  }
+  
+  .itemLeft{
+    display:flex;
+    flex-direction:column;
+    gap:4px;
+    min-width: 0;
+  }
+  
+  .itemTitle{
+    font-weight: 1000;
+    font-size: 13px;
+    white-space: nowrap;
+    overflow:hidden;
+    text-overflow: ellipsis;
+  }
+  
+  .itemSub{
+    color: var(--muted);
+    font-size: 12px;
+  }
+  
+  .itemAmt{
+    font-weight: 1000;
+    font-size: 13px;
+  }
+  
+  /* Chips */
+  .chip{
+    padding: 6px 10px;
+    border-radius: 999px;
+    font-weight: 1000;
+    font-size: 11px;
+  }
+  
+  .chipGreen{ background: rgba(8,248,80,.15); border:1px solid rgba(8,248,80,.45); color: var(--green); }
+  .chipTeal{ background: rgba(88,216,176,.12); border:1px solid rgba(88,216,176,.35); color: var(--teal); }
+  .chipPink{ background: rgba(232,40,136,.14); border:1px solid rgba(232,40,136,.35); color: var(--pink); }
+  .chipPurple{ background: rgba(112,40,248,.14); border:1px solid rgba(112,40,248,.35); color: var(--purple); }
+  
+  /* Filters */
+  .filters{
+    display:flex;
+    gap:12px;
+    margin-top: 14px;
+  }
+  
+  .pill{
+    flex:1;
+    padding: 11px 12px;
+    border-radius: 999px;
+    background: rgba(24,24,96,.7);
+    border: 1px solid rgba(42,42,122,.9);
+    color: var(--text);
+    font-weight: 1000;
+    cursor:pointer;
+  }
+  
+  .pill.active{
+    border-color: rgba(8,248,80,.6);
+  }
+  
+  /* Modal */
+  .modal{
+    position:fixed;
+    inset:0;
+    display:flex;
+    align-items:center;      /* ✅ center vertically */
+    justify-content:center;  /* ✅ center horizontally */
+    padding: 24px;            /* keeps spacing on small screens */
+    z-index: 9999;
+    background: rgba(0,0,0,0.45);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+  
+  .modal.hidden{ display:none; }
+  
+  .modalCard{
+    width: min(720px, calc(100% - 32px));
+    border-radius: 18px;
+    border: 1px solid rgba(255,255,255,0.12);
+    background: rgba(20,24,64,0.92);
+    box-shadow: 0 18px 50px rgba(0,0,0,0.45);
+    transform: translateY(0); /* remove any bottom push */
+    padding: 16px;
+  }
+  
+  .hint{ margin-top: 10px; }
+  
+  /* Desktop topbar row */
+  @media (min-width: 980px){
+    .topbar{
+      flex-direction: row;
+      align-items: center;
+      justify-content: space-between;
+      gap: 18px;
+    }
+  
+    .monthRow{
+      min-width: 540px;
+      justify-content: flex-end;
+    }
+  
+    #monthPicker{
+      min-width: 440px;
+    }
+  }
+  
+  /* ===== Desktop dashboard grid (chart + breakdown side by side) ===== */
+  /* Only applies if your HTML uses: <div class="dashGrid"> with .dashMain and .dashSide */
+  .dashGrid{
+    display: grid;
+    grid-template-columns: 2fr 1fr;
+    gap: 16px;
+    margin-top: 14px;
+    align-items: start;
+  }
+  
+  .dashMain{ min-width: 0; }
+  .dashSide{ min-width: 0; }
+  
+  @media (min-width: 980px){
+    .dashSide{
+      max-height: 520px;
+      overflow: auto;
+    }
+    .dashSide::-webkit-scrollbar{ width: 10px; }
+    .dashSide::-webkit-scrollbar-thumb{
+      background: rgba(191,195,230,.18);
+      border-radius: 999px;
+    }
+  }
+  
+  @media (max-width: 980px){
+    .dashGrid{
+      grid-template-columns: 1fr;
+    }
+    .dashSide{
+      max-height: none;
+      overflow: visible;
+    }
+  }
+  
+  @media (min-width: 1100px){
+    canvas{ height: 440px !important; }
+  }
+
+.goalCard{ margin-top: 14px; }
+
+.goalActions{
+  display:flex;
+  gap:10px;
+  align-items:center;
+}
+
+.goalInput{
+  width: 190px;
+  padding: 10px 12px;
+}
+
+.progress{
+  margin-top: 14px;
+  height: 12px;
+  border-radius: 999px;
+  background: rgba(16,24,88,.45);
+  border: 1px solid rgba(42,42,122,.9);
+  overflow:hidden;
+}
+
+.progressBar{
+  height: 100%;
+  width: 0%;
+    border-radius: 999px;
+  background: linear-gradient(90deg, rgba(8,248,80,.95), rgba(88,216,176,.9));
+  transition: width .25s ease;
+}
+
+.alert{
+  margin-top: 12px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(224,32,32,.45);
+  background: rgba(224,32,32,.12);
+  color: #ffd6d6;
+  font-weight: 900;
+  font-size: 13px;
+}
+
+@media(max-width: 900px){
+  .goalActions{ width: 100%; }
+  .goalInput{ width: 100%; }
+}
+
+.rank{
+  width: 28px;
+  height: 28px;
+  border-radius: 10px;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  font-weight: 1000;
+  font-size: 12px;
+  border: 1px solid rgba(191,195,230,.25);
+  background: rgba(16,24,88,.35);
+  color: var(--text);
+}
+
+.itemRow{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  min-width:0;
+}
+
+.dot{
+  width:10px;
+  height:10px;
+  border-radius:999px;
+  flex:0 0 auto;
+}
+
+/* Month modal form spacing */
+#monthForm{
+  align-items: end;
+}
+#monthForm .input{
+  padding: 11px 12px;
+}
+
+#addMonthBtn{ display:none; }
+
+#delMonthInput{
+  letter-spacing: .5px;
+}
+
+/* ===== Budgets ===== */
+.budgetRow{
+  display:flex;
+  gap:12px;
+  align-items:center;
+  width:100%;
+}
+
+.budgetMeta{
+  display:flex;
+  flex-direction:column;
+  gap:4px;
+  min-width:0;
+  flex:1;
+}
+
+.budgetInput{
+  width: 140px;
+  padding: 10px 12px;
+}
+
+.budgetBtns{
+  display:flex;
+  gap:8px;
+  align-items:center;
+}
+
+.miniProgress{
+  margin-top: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: rgba(16,24,88,.45);
+  border: 1px solid rgba(42,42,122,.9);
+  overflow:hidden;
+}
+
+.miniBar{
+  height: 100%;
+  width: 0%;
+  border-radius: 999px;
+  transition: width .25s ease;
+}
+
+.badgeWarn{
+  background: rgba(240,168,16,.12);
+  border: 1px solid rgba(240,168,16,.45);
+  color: var(--amber);
+}
+
+.badgeOver{
+  background: rgba(224,32,32,.12);
+  border: 1px solid rgba(224,32,32,.45);
+  color: #ffd6d6;
+}
+
+@media(max-width: 900px){
+  .budgetRow{ flex-direction: column; align-items: stretch; }
+  .budgetInput{ width: 100%; }
+  .budgetBtns{ justify-content: flex-end; }
+}
+
+.checkRow{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  color: var(--text);
+  font-weight: 900;
+  user-select:none;
+}
+.checkRow input{
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
+.suggestRow{
+  display:flex;
+  flex-wrap:wrap;
+  gap:10px;
+  margin-top:12px;
+}
+
+.suggestBtn{
+  padding: 10px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(42,42,122,.9);
+  background: rgba(24,24,96,.7);
+  color: var(--text);
+  font-weight: 900;
+  cursor:pointer;
+}
+.suggestBtn:hover{ filter: brightness(1.05); }
+
+.suggestBtn[disabled]{
+  opacity: .45;
+  cursor: not-allowed;
+  filter: grayscale(.6);
+}
+.suggestBtn .addedTag{
+  margin-left: 8px;
+  font-size: 11px;
+  font-weight: 1000;
+  color: var(--muted);
+}
+
+.recRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.recLeft{ min-width:0; }
+.recRight{ display:flex; gap:10px; align-items:center; }
+
+.applyRecAmt{
+  width: 160px;
+  padding: 10px 12px;
+}
+.applyRecRow{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  gap:12px;
+}
+.applyRecLeft{ min-width:0; }
+.applyRecRight{ display:flex; gap:10px; align-items:center; }
+
+.applyRecPick{
+  display:flex;
+  align-items:center;
+  gap:10px;
+}
+
+.applyRecPick input{
+  width: 18px;
+  height: 18px;
+  accent-color: var(--green);
+}
+
+/* ===== Toasts (replace alert/localhost says) ===== */
+.toastHost{
+  position: fixed;
+  top: 18px;
+  right: 18px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+
+.toast{
+  pointer-events: auto;
+  min-width: 260px;
+  max-width: 360px;
+  background: rgba(24,24,96,.92);
+  border: 1px solid rgba(42,42,122,.95);
+  border-radius: 16px;
+  padding: 12px 14px;
+  box-shadow: 0 18px 50px rgba(0,0,0,.35);
+  transform: translateY(-6px);
+  opacity: 0;
+  transition: transform .18s ease, opacity .18s ease;
+}
+
+.toast.show{
+  transform: translateY(0);
+  opacity: 1;
+}
+
+.toastTitle{
+  font-weight: 1000;
+  font-size: 13px;
+  letter-spacing: .2px;
+}
+
+.toastMsg{
+  margin-top: 4px;
+  font-size: 12px;
+  color: var(--muted);
+  line-height: 1.35;
+}
+
+.toast.ok{ border-color: rgba(8,248,80,.45); }
+.toast.warn{ border-color: rgba(240,168,16,.45); }
+.toast.err{ border-color: rgba(224,32,32,.45); }
+
+.toastActionRow{
+  margin-top: 10px;
+  display:flex;
+  justify-content:flex-end;
+}
+
+.toastBtn{
+  border: 1px solid rgba(8,248,80,.45);
+  background: rgba(8,248,80,.12);
+  color: var(--green);
+  font-weight: 1000;
+  padding: 8px 10px;
+  border-radius: 12px;
+  cursor:pointer;
+}
+.toastBtn:hover{ filter: brightness(1.06); }
+
+@media (max-width: 720px){
+  .toastHost{
+    left: 14px;
+    right: 14px;
+    top: 14px;
+  }
+  .toast{ max-width: unset; width: 100%; }
+}
+
+.trendRow{ cursor:pointer; }
+.trendRow:hover{ filter: brightness(1.05); }
+
+.badgeOver{
+  background: rgba(224,32,32,.12);
+  border:1px solid rgba(224,32,32,.35);
+  color: var(--red);
+}
+.badgeWarn{
+  background: rgba(240,168,16,.12);
+  border:1px solid rgba(240,168,16,.35);
+  color: var(--amber);
+}
+
+/* ===========================
+   MOBILE VERSION (Responsive)
+   Paste at bottom of styles.css
+=========================== */
+
+@media (max-width: 900px){
+
+  body{
+    background:
+      radial-gradient(900px 520px at 35% -10%, rgba(112,40,248,.22), transparent 60%),
+      radial-gradient(900px 520px at 105% 10%, rgba(232,40,136,.16), transparent 55%),
+      var(--bg);
+  }
+
+  .app{
+    padding: 16px 14px 28px;
+  }
+
+  /* Topbar becomes stacked */
+  .topbar{
+    flex-direction: column !important;
+    align-items: stretch !important;
+    gap: 12px;
+  }
+
+  .brand{
+    gap: 12px;
+  }
+
+  .logo{
+    width: 42px; height: 42px;
+    border-radius: 14px;
+  }
+
+  .title{ font-size: 18px; }
+  .subtitle{ font-size: 12px; }
+
+  /* Month picker + actions */
+  .monthRow{
+    min-width: 0 !important;
+    justify-content: space-between;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  #monthPicker{
+    min-width: 0 !important;
+    width: 100%;
+  }
+
+  /* Top actions: horizontal scroll on mobile */
+  .topActions{
+    width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    display: flex;
+    gap: 10px;
+    padding-bottom: 6px;
+  }
+  .topActions::-webkit-scrollbar{ height: 0px; }
+
+  .topActions .btn{
+    flex: 0 0 auto;  /* stop shrinking */
+    white-space: nowrap;
+  }
+
+  /* Tabs: nicer on mobile */
+  .tabs{
+    gap: 10px;
+    padding: 6px 0;
+  }
+  .tab{
+    padding: 12px 10px;
+    border-radius: 14px;
+    font-size: 13px;
+  }
+
+  /* All grids become 1 column */
+  .grid2,
+  .dashGrid{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* Cards spacing tighter */
+  .card{
+    border-radius: 18px;
+    padding: 14px;
+  }
+
+  .kpi{
+    font-size: 26px;
+  }
+
+  /* Chart height smaller */
+  canvas{
+    height: 280px !important;
+  }
+
+  /* Breakdown side panel should not be "thin" on mobile */
+  .dashSide{
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* List items fit mobile */
+  .item{
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .itemTitle{ font-size: 13px; }
+  .itemAmt{ font-size: 13px; }
+
+  /* Filters wrap */
+  .filters{
+    flex-wrap: wrap;
+  }
+  .pill{
+    flex: 1 1 calc(50% - 8px);
+  }
+
+  /* Modals center on mobile too */
+  .modal{
+    align-items: center;
+    padding: 12px;
+  }
+  .modalCard{
+    border-radius: 18px;
+  }
+
+  /* Make inputs comfortable on mobile */
+  .input, .select{
+    font-size: 16px; /* prevents iOS zoom */
+  }
+}
+
+/* Full-screen Breakdown Modal on Mobile */
+@media (max-width: 900px){
+  #breakdownModal .modalCard{
+    width: 100%;
+    height: calc(100vh - 24px);
+    max-height: calc(100vh - 24px);
+    border-radius: 18px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #breakdownModal .modalHeader{
+    flex: 0 0 auto;
+  }
+
+  #breakdownModal .breakdownBody{
+    flex: 1 1 auto;
+    overflow: auto;
+    padding-right: 2px;
+  }
+
+  /* inside modal: stack charts */
+  #breakdownModal .grid2{
+    grid-template-columns: 1fr !important;
+  }
+
+  /* slightly smaller charts on mobile modal */
+  #breakdownModal canvas{
+    height: 260px !important;
+  }
+}
+
+/* Full-screen modal behavior */
+.modalFull{
+  width: min(1100px, 100%);
+  max-height: 92vh;
+  overflow: auto;
+}
+
+.compareGrid{
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+}
+
+@media (max-width: 900px){
+  .modalCard.modalFull{
+    border-radius: 0;
+    height: 100vh;
+    max-height: 100vh;
+  }
+  .compareGrid{
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.inlineEdit{
+  cursor:pointer;
+  border-bottom: 1px dashed rgba(191,195,230,.45);
+  padding-bottom: 2px;
+}
+.inlineEdit:hover{ filter: brightness(1.06); }
+
+.inlinePlaceholder{
+  color: var(--muted);
+  border-bottom-color: rgba(191,195,230,.25);
+}
+
+.inlineInput{
+  width: 160px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid rgba(42,42,122,.9);
+  background: rgba(24,24,96,.7);
+  color: var(--text);
+  outline: none;
+  font-weight: 1000;
+}
+.inlineInput:focus{
+  border-color: rgba(8,248,80,.55);
+  box-shadow: 0 0 0 3px rgba(8,248,80,.12);
+}
+
+/* Welcome block */
+.welcome-block{
+  flex: 1 1 auto;      /* can grow + shrink */
+  min-width: 0;        /* IMPORTANT: allows text to truncate */
+  max-width: 520px;    /* cap width so it never eats the month selector */
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 16px;
+  padding: 12px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255,255,255,0.03);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+}
+
+.welcome-texts{
+  display:flex;
+  flex-direction:column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.welcome-line{
+  font-size: 17px;
+  font-weight: 800;
+  color: rgba(255,255,255,0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.welcome-sub{
+  font-size: 13px;
+  color: rgba(255,255,255,0.62);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.welcome-btn{
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.05);
+  color: rgba(255,255,255,0.85);
+  font-weight: 600;
+  padding: 10px 14px;
+  border-radius: 14px;
+  cursor: pointer;
+  transition: transform 0.12s ease, background 0.12s ease, border 0.12s ease;
+}
+
+.welcome-btn:hover{
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.16);
+  transform: translateY(-1px);
+}
+
+.welcome-btn:active{
+  transform: translateY(0px) scale(0.99);
+}
+
+/* Month picker with calendar icon */
+.monthPickerWrap{
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Calendar icon (pure CSS) */
+.monthPickerWrap::before{
+  content: "";
+  position: absolute;
+  left: 14px;
+  width: 14px;
+  height: 12px;
+  border-radius: 3px;
+  border: 2px solid rgba(255,255,255,0.55);
+  border-top: 0;
+  box-sizing: border-box;
+  opacity: 0.95;
+  pointer-events: none;
+  box-shadow:
+    3px -4px 0 0 rgba(255,255,255,0.75),
+    9px -4px 0 0 rgba(255,255,255,0.75);
+}
+
+/* Calendar binding rings (pure CSS) */
+.monthPickerWrap span{
+  display:none; /* safeguard if spans exist elsewhere */
+}
+
+/* Left ring */
+.monthPickerWrap::marker{
+  content: none;
+}
+
+/* Calendar top bar */
+.monthPickerWrap::after{
+  content: "";
+  position: absolute;
+  left: 14px;
+  top: 50%;
+  transform: translateY(-8px);
+  width: 14px;
+  height: 4px;
+  border-radius: 2px 2px 0 0;
+  background: rgba(255,255,255,0.45);
+  pointer-events: none;
+  opacity: 0.95;
+}
+
+/* Default icon/rings */
+.monthPickerWrap::before,
+.monthPickerWrap::after{
+  transition: box-shadow .15s ease, filter .15s ease, opacity .15s ease;
+}
+
+/* Hover glow only on the icon area */
+.monthPickerWrap:hover::before,
+.monthPickerWrap:hover::after{
+  filter: brightness(1.15);
+}
+
+.monthPickerWrap:hover::before{
+  box-shadow:
+    0 0 0 4px rgba(64,255,160,0.10),        /* soft outer glow */
+    3px -4px 0 0 rgba(255,255,255,0.78),    /* ring 1 */
+    9px -4px 0 0 rgba(255,255,255,0.78);    /* ring 2 */
+}
+
+/* When the SELECT is focused, highlight the icon/rings */
+.monthPickerWrap:focus-within::before{
+  box-shadow:
+    0 0 0 5px rgba(64,255,160,0.16),
+    3px -4px 0 0 rgba(64,255,160,0.85),
+    9px -4px 0 0 rgba(64,255,160,0.85);
+}
+
+.monthPickerWrap:focus-within::after{
+  opacity: 1;
+}
+
+/* Tiny pulse animation (subtle) */
+@keyframes ringPulse{
+  0%   { transform: translateY(0); }
+  50%  { transform: translateY(-1px); }
+  100% { transform: translateY(0); }
+}
+
+.monthPickerWrap:focus-within::before{
+  animation: ringPulse 0.35s ease-in-out 1;
+}
+
+/* Export dropdown menu */
+.menu{
+  position: relative;
+  display: inline-flex;
+}
+
+.menuPanel{
+  position: absolute;
+  top: calc(100% + 8px);
+  right: 0;
+  min-width: 170px;
+  padding: 8px;
+  border-radius: 14px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(20,24,64,0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 14px 30px rgba(0,0,0,0.28);
+  display: none;
+  z-index: 50;
+}
+
+.menuPanel.open{ display: block; }
+
+.menuItem{
+  width: 100%;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(255,255,255,0.92);
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.menuItem:hover{
+  background: rgba(255,255,255,0.08);
+  border-color: rgba(255,255,255,0.10);
+}
+
+/* Make room for the icon and add custom arrow */
+#monthPicker{
+  padding-left: 40px; /* space for calendar icon */
+  appearance: none;
+  -webkit-appearance: none;
+  background-image:
+    linear-gradient(45deg, transparent 50%, rgba(255,255,255,0.65) 50%),
+    linear-gradient(135deg, rgba(255,255,255,0.65) 50%, transparent 50%);
+  background-position:
+    calc(100% - 18px) 50%,
+    calc(100% - 12px) 50%;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 38px; /* room for arrow */
+  min-width: 180px;
+}
+
+/* Truncate welcome text instead of expanding */
+.welcome-line,
+.welcome-sub{
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Responsive adjustments for smaller screens */
+@media (max-width: 1100px){
+  .welcome-block{ max-width: 420px; }
+  #monthPicker{ min-width: 150px; }
+}
