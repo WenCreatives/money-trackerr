@@ -945,4 +945,37 @@ if ($path === '/goals' && $method === 'POST') {
   ok(['ok'=>true]);
 }
 
+// DELETE /api/reset - Clear all data (for reset button)
+if ($path === '/reset' && $method === 'DELETE') {
+  try {
+    $db->beginTransaction();
+    
+    // Delete all data from all tables
+    $db->exec("DELETE FROM transactions");
+    $db->exec("DELETE FROM months");
+    $db->exec("DELETE FROM categories");
+    $db->exec("DELETE FROM goals");
+    $db->exec("DELETE FROM budgets");
+    $db->exec("DELETE FROM recurring_templates");
+    $db->exec("DELETE FROM recurring_runs");
+    
+    // Re-seed default categories
+    $seed = [
+      ['Salary','income','#08F850'],
+      ['Side Gigs','income','#58D8B0'],
+      ['Groceries','expense','#E82888'],
+      ['Transport','expense','#7028F8'],
+      ['Bills','expense','#F0A810'],
+    ];
+    $st = $db->prepare("INSERT INTO categories(name,type,color) VALUES(?,?,?)");
+    foreach ($seed as $c) $st->execute($c);
+    
+    $db->commit();
+    ok(['ok' => true, 'message' => 'All data cleared']);
+  } catch (Throwable $e) {
+    if ($db->inTransaction()) $db->rollBack();
+    err('Reset failed: ' . $e->getMessage(), 500);
+  }
+}
+
 err('Not found', 404);

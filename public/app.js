@@ -106,6 +106,8 @@ let state = {
 let trendChart = null;
 let comparePieChart = null;
 let compareBarChart = null;
+let breakdownPieChart = null;
+let breakdownBarChart = null;
 
 const ADD_MONTH_VALUE = "__add_month__";
 
@@ -876,6 +878,7 @@ async function loadSummary() {
   try {
     const s = await apiGet(`/summary?month=${encodeURIComponent(state.month)}`);
     await dbSet(K_SUMMARY(state.month), s);
+    state.summary = s; // Store in state for breakdown charts
     
     const empty = (s.total_income || 0) === 0 && (s.total_expenses || 0) === 0;
     document.querySelector(".chartWrap").classList.toggle("empty", empty);
@@ -952,6 +955,7 @@ async function loadSummary() {
     const cached = await dbGet(K_SUMMARY(state.month));
     if (cached) {
       const s = cached;
+      state.summary = s; // Store in state for breakdown charts
       const empty = (s.total_income || 0) === 0 && (s.total_expenses || 0) === 0;
       document.querySelector(".chartWrap").classList.toggle("empty", empty);
 
@@ -1535,16 +1539,14 @@ function renderTransactions() {
     el.innerHTML = `
       <div class="card">
         <div class="sectionTitle">No transactions yet</div>
-        <div class="small">Add your first transaction, or load demo data to preview the app.</div>
-        <div style="margin-top:12px; display:flex; gap:10px;">
+        <div class="small">Add your first transaction to get started.</div>
+        <div style="margin-top:12px;">
           <button class="btn" type="button" id="emptyAddTx">+ Add transaction</button>
-          <button class="btn btnGhost" type="button" id="emptyDemo">Load demo data</button>
         </div>
       </div>
     `;
 
     document.getElementById("emptyAddTx")?.addEventListener("click", openAddTransaction);
-    document.getElementById("emptyDemo")?.addEventListener("click", loadDemoData);
     return;
   }
 
@@ -1817,100 +1819,8 @@ function exportTrendsCSV(){
   toast("Downloading trends CSV…", "ok");
 }
 
-async function loadDemoData(){
-  try{
-    const mk = state.month || (typeof monthKeyNow === "function" ? monthKeyNow() : new Date().toISOString().slice(0,7));
-
-    // avoid accidental duplicates
-    if ((state.transactions || []).length > 0) {
-      if (typeof confirmDialog === "function") {
-        const ok = await confirmDialog({
-          title: "Load demo data?",
-          message: "You already have transactions in this month. Demo data will add more transactions (duplicates). Continue?",
-          okText: "Load demo",
-          danger: false
-        });
-        if (!ok) return;
-      } else {
-        toast("This month already has transactions. Switch to a new month to load demo data.", "warn");
-        return;
-      }
-    }
-
-    // ensure month exists
-    if (typeof ensureMonth === "function") await ensureMonth(mk);
-
-    // demo categories
-    const demoCats = [
-      { name:"Salary", type:"income", color:"#08F850" },
-      { name:"Freelance", type:"income", color:"#58D8B0" },
-
-      { name:"Rent", type:"expense", color:"#E82888" },
-      { name:"Food", type:"expense", color:"#F0A810" },
-      { name:"Transport", type:"expense", color:"#7028F8" },
-      { name:"Airtime", type:"expense", color:"#BFC3E6" },
-      { name:"Entertainment", type:"expense", color:"#58D8B0" }
-    ];
-
-    // create categories if missing
-    for (const c of demoCats){
-      if (typeof ensureCategoryByNameType === "function") {
-        await ensureCategoryByNameType(c.name, c.type, c.color);
-      } else {
-        // fallback if you don't have ensureCategoryByNameType
-        await apiSend("/categories", "POST", c);
-      }
-    }
-
-    // reload categories so we can map ids
-    if (typeof loadCategories === "function") await loadCategories();
-
-    const cats = state.categories || [];
-    const idOf = (name, type) => {
-      const n = String(name).toLowerCase();
-      return (cats.find(x => String(x.name).toLowerCase() === n && String(x.type).toLowerCase() === type)?.id) || null;
-    };
-
-    const tx = [
-      { cat:"Salary", type:"income", day: "25", amount: 45000, note: "Monthly salary" },
-      { cat:"Freelance", type:"income", day: "12", amount: 15000, note: "Client project" },
-
-      { cat:"Rent", type:"expense", day:"01", amount: 18000, note: "House rent" },
-      { cat:"Food", type:"expense", day:"03", amount: 2200, note: "Groceries" },
-      { cat:"Food", type:"expense", day:"08", amount: 1200, note: "Lunch" },
-      { cat:"Transport", type:"expense", day:"05", amount: 900, note: "Matatu" },
-      { cat:"Transport", type:"expense", day:"15", amount: 1100, note: "Fuel" },
-      { cat:"Airtime", type:"expense", day:"09", amount: 300, note: "Data bundle" },
-      { cat:"Entertainment", type:"expense", day:"20", amount: 1500, note: "Movie" }
-    ];
-
-    // add transactions
-    for (const t of tx){
-      const cid = idOf(t.cat, t.type);
-      if (!cid) continue;
-
-      const tdate = `${mk}-${String(t.day).padStart(2,"0")}`;
-
-      await apiSend("/transactions", "POST", {
-        month_key: mk,
-        category_id: Number(cid),
-        amount: Number(t.amount),
-        date: tdate,
-        note: t.note
-      });
-    }
-
-    toast("Demo data loaded ✅", "ok");
-    if (typeof loadMonths === "function") await loadMonths();
-    state.month = mk;
-    const mp = document.getElementById("monthPicker");
-    if (mp) mp.value = mk;
-
-    if (typeof refreshMonth === "function") await refreshMonth();
-  } catch (err){
-    toast(err?.message || "Demo data failed", "err");
-  }
-}
+// Demo data functionality removed - users start with clean empty app
+// async function loadDemoData(){ ... }
 
 async function exportMonthJSON(){
   const mk = state.month;
@@ -2555,8 +2465,7 @@ function wireUI() {
 
   $("#btnTrendExportCsv")?.addEventListener("click", exportTrendsCSV);
 
-  // Demo data button
-  document.getElementById("btnDemo")?.addEventListener("click", loadDemoData);
+  // Demo data functionality removed - users start with clean empty app
 
   // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
@@ -2586,9 +2495,183 @@ function wireUI() {
     }
   });
 
+  // Breakdown modal functions
+  function openBreakdownModal() {
+    const m = document.getElementById("breakdownModal");
+    if (!m) return;
+    m.classList.remove("hidden");
+    m.setAttribute("aria-hidden", "false");
+    renderBreakdownCharts(state.month);
+  }
+
+  function closeBreakdownModal() {
+    const m = document.getElementById("breakdownModal");
+    if (!m) return;
+    m.classList.add("hidden");
+    m.setAttribute("aria-hidden", "true");
+    // Destroy charts when closing
+    if (breakdownPieChart) {
+      breakdownPieChart.destroy();
+      breakdownPieChart = null;
+    }
+    if (breakdownBarChart) {
+      breakdownBarChart.destroy();
+      breakdownBarChart = null;
+    }
+  }
+
+  function renderBreakdownCharts(monthKey) {
+    if (!monthKey) {
+      console.error("renderBreakdownCharts: monthKey is required");
+      return;
+    }
+    try {
+      // Get expense breakdown from summary
+      const breakdown = (state.summary?.breakdown || []).filter(b => 
+        (b.type || "").toLowerCase() === "expense"
+      );
+
+      const pieEl = document.getElementById("breakdownPie");
+      const barEl = document.getElementById("breakdownBars");
+      const emptyEl = document.getElementById("breakdownEmpty");
+
+      if (!pieEl || !barEl) {
+        console.error("Breakdown chart canvas elements not found");
+        return;
+      }
+
+      // Destroy old charts
+      if (breakdownPieChart) breakdownPieChart.destroy();
+      if (breakdownBarChart) breakdownBarChart.destroy();
+
+      if (!breakdown.length) {
+        // Show empty message
+        if (emptyEl) emptyEl.style.display = "block";
+        // Render placeholder charts
+        breakdownPieChart = new Chart(pieEl.getContext("2d"), {
+          type: "doughnut",
+          data: { 
+            labels: ["No data"], 
+            datasets: [{ 
+              data: [1], 
+              backgroundColor: ["rgba(191,195,230,.15)"], 
+              borderWidth: 0 
+            }] 
+          },
+          options: { 
+            responsive: true, 
+            maintainAspectRatio: false,
+            cutout: "70%",
+            plugins: { 
+              legend: { display: false }, 
+              tooltip: { enabled: false } 
+            } 
+          }
+        });
+        breakdownBarChart = new Chart(barEl.getContext("2d"), {
+          type: "bar",
+          data: { labels: ["No data"], datasets: [{ data: [0] }] },
+          options: { 
+            responsive: true, 
+            maintainAspectRatio: false, 
+            plugins: { 
+              legend: { display: false }, 
+              tooltip: { enabled: false } 
+            } 
+          }
+        });
+        return;
+      }
+
+      // Hide empty message
+      if (emptyEl) emptyEl.style.display = "none";
+
+      const labels = breakdown.map(b => b.name);
+      const values = breakdown.map(b => Number(b.amount) || 0);
+      const colors = breakdown.map(b => b.color || "#E82888");
+      const total = values.reduce((a, b) => a + b, 0);
+
+      // Pie/Donut chart
+      breakdownPieChart = new Chart(pieEl.getContext("2d"), {
+        type: "doughnut",
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors,
+            borderWidth: 0,
+            hoverOffset: 6,
+            cutout: "68%"
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          layout: { padding: 14 },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.raw || 0;
+                  const pct = total ? Math.round((v / total) * 100) : 0;
+                  return `${ctx.label}: ${fmtKsh(v)} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+
+      // Bar chart
+      breakdownBarChart = new Chart(barEl.getContext("2d"), {
+        type: "bar",
+        data: {
+          labels,
+          datasets: [{
+            data: values,
+            backgroundColor: colors,
+            borderWidth: 0,
+            borderRadius: 8
+          }]
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          indexAxis: "y",
+          scales: {
+            x: {
+              beginAtZero: true,
+              grid: { display: false },
+              ticks: { color: "rgba(255,255,255,0.5)", font: { size: 11 } }
+            },
+            y: {
+              grid: { color: "rgba(255,255,255,0.08)" },
+              ticks: { color: "rgba(255,255,255,0.5)", font: { size: 11 } }
+            }
+          },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              callbacks: {
+                label: (ctx) => {
+                  const v = ctx.raw || 0;
+                  const pct = total ? Math.round((v / total) * 100) : 0;
+                  return `${ctx.label}: ${fmtKsh(v)} (${pct}%)`;
+                }
+              }
+            }
+          }
+        }
+      });
+    } catch (err) {
+      console.error("Error rendering breakdown charts:", err);
+    }
+  }
+
   // Breakdown modal close button
   document.getElementById("breakdownClose")?.addEventListener("click", () => {
-    document.getElementById("breakdownModal")?.classList.add("hidden");
+    closeBreakdownModal();
   });
 
   // Mobile: tap Breakdown card -> open breakdown modal
@@ -2601,16 +2684,7 @@ function wireUI() {
 
     if (isMobile()) {
       e.preventDefault();
-      const m = document.getElementById("breakdownModal");
-      if (m) {
-        m.classList.remove("hidden");
-        // Copy breakdown list content to modal
-        const originalList = document.getElementById("breakdownList");
-        const modalList = document.getElementById("breakdownListModal");
-        if (originalList && modalList) {
-          modalList.innerHTML = originalList.innerHTML;
-        }
-      }
+      openBreakdownModal();
     }
   });
 
@@ -2620,7 +2694,7 @@ function wireUI() {
   const compareClose = document.getElementById("compareClose");
   const compareReset = document.getElementById("compareReset");
 
-  function openCompareModal(){
+  async function openCompareModal(){
     if(!compareModal) {
       console.error("compareModal element not found");
       return;
@@ -2630,6 +2704,15 @@ function wireUI() {
       return;
     }
     try {
+      // Ensure summary is loaded (contains breakdown data)
+      if (!state.summary) {
+        await loadSummary();
+      }
+      // Also ensure transactions are loaded as fallback
+      if (!state.transactions || state.transactions.length === 0) {
+        await loadTransactions();
+      }
+      
       compareModal.classList.remove("hidden");
       compareModal.setAttribute("aria-hidden", "false");
       renderCompareCharts(state.month);
@@ -2692,12 +2775,27 @@ function wireUI() {
       return;
     }
     try {
-      // Filter transactions for the selected month
-      const txs = (state.transactions || []).filter(t => {
-        const txMonth = (t.tdate || "").slice(0, 7); // YYYY-MM
-        return txMonth === monthKey;
-      });
-      const pairs = sumExpensesByCategory(txs);
+      // Use summary breakdown data if available (more reliable)
+      let pairs = [];
+      
+      if (state.summary && state.summary.breakdown) {
+        // Get expense breakdown from summary
+        const expenseBreakdown = state.summary.breakdown.filter(b => 
+          (b.type || "").toLowerCase() === "expense"
+        );
+        pairs = expenseBreakdown.map(b => [b.name, Number(b.amount) || 0])
+          .sort((a, b) => b[1] - a[1]); // Sort by amount descending
+      } else {
+        // Fallback: filter transactions manually
+        const allTxs = state.transactions || [];
+        const txs = allTxs.filter(t => {
+          const txMonth = (t.tdate || t.date || "").slice(0, 7); // YYYY-MM
+          return txMonth === monthKey;
+        });
+        pairs = sumExpensesByCategory(txs);
+      }
+      
+      console.log("Expense categories for compare:", pairs.length);
 
       const pieEl = document.getElementById("comparePie");
       const barEl = document.getElementById("compareBar");
@@ -2736,14 +2834,25 @@ function wireUI() {
     const values = pairs.map(([,v]) => v);
     const total = values.reduce((a,b)=>a+b,0);
 
-    // Colors from CSS variables if available
-    const css = getComputedStyle(document.documentElement);
-    const PINK  = css.getPropertyValue("--pink")?.trim()  || "#E82888";
-    const AMBER = css.getPropertyValue("--amber")?.trim() || "#F0A810";
-    const PURP  = css.getPropertyValue("--purple")?.trim()|| "#7028F8";
-    const TEAL  = css.getPropertyValue("--teal")?.trim()  || "#58D8B0";
-    const GREEN = css.getPropertyValue("--green")?.trim() || "#08F850";
-    const palette = [PINK, AMBER, PURP, TEAL, GREEN, "#BFC3E6"];
+    // Get colors from breakdown if available, otherwise use palette
+    let colors;
+    if (state.summary && state.summary.breakdown) {
+      const expenseBreakdown = state.summary.breakdown.filter(b => 
+        (b.type || "").toLowerCase() === "expense"
+      );
+      const colorMap = new Map(expenseBreakdown.map(b => [b.name, b.color || "#E82888"]));
+      colors = labels.map(cat => colorMap.get(cat) || "#E82888");
+    } else {
+      // Fallback: use CSS variables palette
+      const css = getComputedStyle(document.documentElement);
+      const PINK  = css.getPropertyValue("--pink")?.trim()  || "#E82888";
+      const AMBER = css.getPropertyValue("--amber")?.trim() || "#F0A810";
+      const PURP  = css.getPropertyValue("--purple")?.trim()|| "#7028F8";
+      const TEAL  = css.getPropertyValue("--teal")?.trim()  || "#58D8B0";
+      const GREEN = css.getPropertyValue("--green")?.trim() || "#08F850";
+      const palette = [PINK, AMBER, PURP, TEAL, GREEN, "#BFC3E6"];
+      colors = labels.map((_,i) => palette[i % palette.length]);
+    }
 
     // Pie/Donut chart
     comparePieChart = new Chart(pieEl.getContext("2d"), {
@@ -2752,7 +2861,7 @@ function wireUI() {
         labels,
         datasets: [{
           data: values,
-          backgroundColor: labels.map((_,i) => palette[i % palette.length]),
+          backgroundColor: colors,
           borderWidth: 0,
           hoverOffset: 6,
           cutout: "68%"
@@ -2781,6 +2890,10 @@ function wireUI() {
     const topN = 8;
     const topLabels = labels.slice(0, topN);
     const topValues = values.slice(0, topN);
+    const topColors = topLabels.map(cat => {
+      const idx = labels.indexOf(cat);
+      return colors[idx] || "#E82888";
+    });
 
     compareBarChart = new Chart(barEl.getContext("2d"), {
       type: "bar",
@@ -2788,8 +2901,8 @@ function wireUI() {
         labels: topLabels,
         datasets: [{
           data: topValues,
-          backgroundColor: "rgba(232,40,136,.35)",
-          borderColor: "rgba(232,40,136,.8)",
+          backgroundColor: topColors.map(c => c + "80"), // Add transparency
+          borderColor: topColors,
           borderWidth: 1,
           borderRadius: 10
         }]
@@ -3068,4 +3181,262 @@ boot().catch(err => toast(err.message, "err"));
   } else {
     initWelcome();
   }
+})();
+
+// Onboarding flow (first-time only)
+(function () {
+  const OB_KEY = "mt_onboarded_v1";
+  const NAME_KEY = "mt_display_name";
+  const DEFAULT_GOAL_KEY = "mt_default_goal";
+
+  const overlay = document.getElementById("onboardOverlay");
+  if (!overlay) return;
+
+  const steps = Array.from(document.querySelectorAll(".obStep"));
+  const dots = Array.from(document.querySelectorAll(".obDot"));
+  const btnBack = document.getElementById("obBack");
+  const btnNext = document.getElementById("obNext");
+  const btnSkip = document.getElementById("obSkip");
+  const btnClose = document.getElementById("obClose");
+
+  // Debug: Check if button is found
+  console.log("obNext found?", btnNext);
+
+  const nameInput = document.getElementById("obName");
+  const goalInput = document.getElementById("obGoal");
+
+  let step = 0;
+
+  function sanitizeName(name) {
+    return String(name || "")
+      .trim()
+      .replace(/[^\w\s-]/g, "")
+      .replace(/\s+/g, " ")
+      .slice(0, 20);
+  }
+
+  function open() {
+    overlay.removeAttribute("hidden");
+    overlay.style.display = "flex";
+    render();
+    setTimeout(() => document.getElementById("obClose")?.focus(), 0);
+  }
+
+  function close() {
+    overlay.setAttribute("hidden", "true");
+    overlay.style.display = "none";
+  }
+
+  function setDotActive(i) {
+    dots.forEach((d, idx) => d.classList.toggle("obDotActive", idx === i));
+  }
+
+  function render() {
+    steps.forEach((s, idx) => s.classList.toggle("obStepShow", idx === step));
+    setDotActive(step);
+
+    btnBack.disabled = step === 0;
+    btnNext.textContent = step === steps.length - 1 ? "Finish" : "Next";
+  }
+
+  function applyWelcomeName(name) {
+    const welcomeLine = document.getElementById("welcomeLine");
+    if (!welcomeLine) return;
+
+    const h = new Date().getHours();
+    const g = h < 12 ? "Good morning" : h < 18 ? "Good afternoon" : "Good evening";
+    welcomeLine.textContent = name ? `${g}, ${name} 👋` : `${g} 👋`;
+  }
+
+  function applyGoalNow(goal) {
+    const gi = document.getElementById("goalInput");
+    const save = document.getElementById("saveGoalBtn");
+    if (gi && save) {
+      gi.value = String(goal);
+      save.click(); // uses your existing save logic
+    }
+  }
+
+  function finish(saveData) {
+    // Always mark as onboarded (even if skipped)
+    localStorage.setItem(OB_KEY, "1");
+    
+    if (saveData) {
+      const cleanedName = sanitizeName(nameInput?.value);
+      const goal = Number(goalInput?.value || 0);
+
+      if (cleanedName) {
+        localStorage.setItem(NAME_KEY, cleanedName);
+        applyWelcomeName(cleanedName);
+      }
+
+      if (goal > 0) {
+        localStorage.setItem(DEFAULT_GOAL_KEY, String(goal));
+        applyGoalNow(goal);
+      }
+    }
+
+    close();
+  }
+
+  btnBack?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    step = Math.max(0, step - 1);
+    render();
+  });
+
+  btnNext?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    console.log("Finish/Next button clicked, step:", step);
+    if (step < steps.length - 1) {
+      step += 1;
+      render();
+    } else {
+      console.log("Calling finish(true)");
+      finish(true);
+    }
+  });
+
+  btnSkip?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Mark as onboarded even when skipped
+    localStorage.setItem(OB_KEY, "1");
+    close();
+  });
+  
+  btnClose?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    // Mark as onboarded even when closed
+    localStorage.setItem(OB_KEY, "1");
+    close();
+  });
+
+  document.addEventListener("keydown", (e) => {
+    if (overlay.hidden) return;
+    if (e.key === "Escape") {
+      // Mark as onboarded when ESC is pressed
+      localStorage.setItem(OB_KEY, "1");
+      close();
+    }
+  });
+
+  function init() {
+    const params = new URLSearchParams(window.location.search);
+    const force = params.get("test_onboarding") === "1"; // only for testing
+
+    // Normal users: show only if not onboarded
+    if (!force && localStorage.getItem(OB_KEY) === "1") return;
+
+    // If testing, temporarily clear the flag
+    if (force) {
+      localStorage.removeItem(OB_KEY);
+    }
+
+    open();
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+
+// Reset all data button (with type-to-confirm modal)
+(function () {
+  const btnReset = document.getElementById("btnResetAll");
+  const resetModal = document.getElementById("resetModal");
+  const resetModalClose = document.getElementById("resetModalClose");
+  const resetCancel = document.getElementById("resetCancel");
+  const resetConfirm = document.getElementById("resetConfirm");
+  const resetConfirmInput = document.getElementById("resetConfirmInput");
+
+  if (!btnReset || !resetModal) return;
+
+  function openResetModal() {
+    resetModal.classList.remove("hidden");
+    resetConfirmInput.value = "";
+    resetConfirm.disabled = true;
+    resetConfirmInput.focus();
+  }
+
+  function closeResetModal() {
+    resetModal.classList.add("hidden");
+    resetConfirmInput.value = "";
+    resetConfirm.disabled = true;
+  }
+
+  function checkConfirmInput() {
+    const typed = resetConfirmInput.value.toUpperCase().trim();
+    resetConfirm.disabled = typed !== "RESET";
+  }
+
+  async function performReset() {
+    try {
+      // Clear database
+      const res = await fetch('/api/reset', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' }
+      });
+
+      if (!res.ok) {
+        const err = await res.json();
+        alert('Failed to reset database: ' + (err.error || 'Unknown error'));
+        return;
+      }
+
+      // Clear localStorage
+      const keysToRemove = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (!k) continue;
+
+        if (
+          k.startsWith("mt_") ||
+          k.startsWith("monetzie_") ||
+          k.startsWith("money_")
+        ) {
+          keysToRemove.push(k);
+        }
+      }
+
+      keysToRemove.forEach(k => localStorage.removeItem(k));
+      
+      // Also clear demo flag if it exists
+      localStorage.removeItem("mt_demo_mode");
+      
+      closeResetModal();
+      // Reload to show empty state
+      location.reload();
+    } catch (error) {
+      console.error('Reset error:', error);
+      alert('Error resetting data: ' + error.message);
+    }
+  }
+
+  btnReset.addEventListener("click", openResetModal);
+  resetModalClose?.addEventListener("click", closeResetModal);
+  resetCancel?.addEventListener("click", closeResetModal);
+  
+  resetConfirmInput?.addEventListener("input", checkConfirmInput);
+  resetConfirmInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !resetConfirm.disabled) {
+      e.preventDefault();
+      performReset();
+    }
+    if (e.key === "Escape") {
+      closeResetModal();
+    }
+  });
+
+  resetConfirm?.addEventListener("click", performReset);
+
+  // Close on backdrop click
+  resetModal?.addEventListener("click", (e) => {
+    if (e.target === resetModal) closeResetModal();
+  });
 })();

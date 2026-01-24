@@ -1197,3 +1197,140 @@
   .welcome-block{ max-width: 420px; }
   #monthPicker{ min-width: 150px; }
 }
+
+/* Onboarding overlay */
+.obOverlay{
+  position: fixed;
+  inset: 0;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  padding: 24px;
+  z-index: 9999;
+  background: rgba(0,0,0,0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.obOverlay[hidden]{
+  display: none !important;
+}
+
+.obModal{
+  width: min(760px, calc(100% - 32px));
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(20,24,64,0.92);
+  box-shadow: 0 20px 60px rgba(0,0,0,0.45);
+  padding: 16px;
+}
+
+.obHead{
+  display:flex;
+  align-items:flex-start;
+  justify-content:space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+
+.obTitle{
+  font-size: 18px;
+  font-weight: 900;
+  color: rgba(255,255,255,0.94);
+}
+
+.obSub{
+  font-size: 13px;
+  color: rgba(255,255,255,0.62);
+  margin-top: 4px;
+}
+
+.obIconBtn{
+  width: 36px;
+  height: 36px;
+  border-radius: 12px;
+  border: 1px solid rgba(255,255,255,0.12);
+  background: rgba(255,255,255,0.06);
+  color: rgba(255,255,255,0.90);
+  cursor: pointer;
+}
+
+.obSteps{
+  display:flex;
+  gap: 8px;
+  padding: 8px 2px 14px;
+}
+
+.obDot{
+  width: 8px;
+  height: 8px;
+  border-radius: 99px;
+  background: rgba(255,255,255,0.18);
+}
+
+.obDotActive{
+  background: rgba(64,255,160,0.85);
+  box-shadow: 0 0 0 4px rgba(64,255,160,0.12);
+}
+
+.obStep{ display:none; }
+.obStepShow{ display:block; }
+
+.obCard{
+  border-radius: 16px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: rgba(255,255,255,0.04);
+  padding: 14px;
+}
+
+.obCardTitle{
+  font-weight: 900;
+  color: rgba(255,255,255,0.92);
+  margin-bottom: 6px;
+}
+
+.obCardText{
+  color: rgba(255,255,255,0.70);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.obLabel{
+  display:block;
+  font-weight: 800;
+  font-size: 13px;
+  color: rgba(255,255,255,0.82);
+  margin-bottom: 8px;
+}
+
+.obMuted{ color: rgba(255,255,255,0.55); font-weight: 700; }
+
+.obHint{
+  font-size: 12px;
+  color: rgba(255,255,255,0.55);
+  margin-top: 8px;
+}
+
+.obCheckRow{
+  display:flex;
+  align-items:center;
+  gap: 10px;
+  color: rgba(255,255,255,0.78);
+  font-weight: 700;
+  font-size: 13px;
+}
+
+.obFoot{
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap: 10px;
+  padding-top: 12px;
+  margin-top: 14px;
+  border-top: 1px solid rgba(255,255,255,0.08);
+}
+
+.obFootRight{
+  display:flex;
+  gap: 10px;
+}

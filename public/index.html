@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Monthly Money Tracker</title>
   <link rel="stylesheet" href="./styles.css"/>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="./chart.umd.min.js"></script>
 </head>
 <body>
   <div class="app">
@@ -38,7 +38,6 @@
         </div>
         <button id="btnImportJson" class="btn btnGhost btnSmall" type="button">Import JSON</button>
         <input id="importJsonFile" type="file" accept="application/json" style="display:none;">
-        <button id="btnDemo" class="btn btnGhost btnSmall" type="button">Load demo data</button>
         <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
       </div>
     </header>
@@ -222,12 +221,13 @@
       <!-- CATEGORIES -->
       <section id="categories" class="panel">
         <div class="card">
-          <div class="rowBetween">
-            <div>
-              <div class="sectionTitle">Categories</div>
-              <div class="small">Custom income + expense categories</div>
-            </div>
-          </div>
+      <div class="rowBetween">
+        <div>
+          <div class="sectionTitle">Categories</div>
+          <div class="small">Custom income + expense categories</div>
+        </div>
+        <button id="btnResetAll" class="btn btnGhost btnSmall" type="button" style="color: rgba(255,255,255,0.60);" title="Reset all data">Reset data</button>
+      </div>
 
           <form id="catForm" class="form">
             <input id="catName" class="input" placeholder="Category name (e.g. Transport)" required />
@@ -480,6 +480,49 @@
     </div>
   </div>
 
+  <!-- Reset Data Modal (with type-to-confirm) -->
+  <div id="resetModal" class="modal hidden">
+    <div class="modalCard">
+      <div class="rowBetween">
+        <div>
+          <div class="sectionTitle" style="color: #E02020;">⚠️ Reset All Data</div>
+          <div class="small" style="color: rgba(255,255,255,0.70); margin-top:6px;">
+            This action cannot be undone
+          </div>
+        </div>
+        <button id="resetModalClose" class="btn btnGhost btnSmall">✕</button>
+      </div>
+
+      <div style="margin-top:16px; padding:14px; border-radius:14px; background:rgba(224,32,32,0.15); border:1px solid rgba(224,32,32,0.3);">
+        <div style="font-weight:800; color:rgba(255,255,255,0.95); margin-bottom:8px;">
+          This will permanently delete:
+        </div>
+        <ul style="margin:0; padding-left:20px; color:rgba(255,255,255,0.80); font-size:13px; line-height:1.8;">
+          <li>All transactions</li>
+          <li>All months and data</li>
+          <li>All custom categories</li>
+          <li>All goals and budgets</li>
+          <li>All recurring templates</li>
+          <li>Your saved preferences</li>
+        </ul>
+      </div>
+
+      <div style="margin-top:16px;">
+        <label class="obLabel" style="margin-bottom:8px;">
+          Type <strong style="color:#E02020;">RESET</strong> to confirm:
+        </label>
+        <input id="resetConfirmInput" class="input" type="text" placeholder="Type RESET here" autocomplete="off" style="text-transform:uppercase;">
+      </div>
+
+      <div style="display:flex; gap:10px; margin-top:20px; justify-content:flex-end;">
+        <button id="resetCancel" class="btn btnGhost">Cancel</button>
+        <button id="resetConfirm" class="btn" style="background: linear-gradient(135deg, rgba(224,32,32,.95), rgba(232,40,136,.9));" disabled>
+          Delete All Data
+        </button>
+      </div>
+    </div>
+  </div>
+
   <!-- Reusable Confirm Modal (replaces browser confirm) -->
   <div id="confirmModal" class="modal hidden">
     <div class="modalCard">
@@ -493,6 +536,69 @@
       <div class="rowBetween" style="margin-top:14px;">
         <button id="confirmCancel" class="btn btnGhost">Cancel</button>
         <button id="confirmOk" class="btn btnDangerSolid">Yes</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Onboarding (first-time only) -->
+  <div id="onboardOverlay" class="obOverlay" hidden>
+    <div class="obModal" role="dialog" aria-modal="true" aria-labelledby="obTitle">
+      <div class="obHead">
+        <div>
+          <div id="obTitle" class="obTitle">Welcome to Monetzie 👋</div>
+          <div class="obSub">Let's set you up in under 30 seconds.</div>
+        </div>
+
+        <button id="obClose" class="obIconBtn" type="button" aria-label="Close">✕</button>
+      </div>
+
+      <!-- Step indicators -->
+      <div class="obSteps">
+        <span class="obDot obDotActive" data-dot="0"></span>
+        <span class="obDot" data-dot="1"></span>
+        <span class="obDot" data-dot="2"></span>
+      </div>
+
+      <!-- Step 1 -->
+      <section class="obStep obStepShow" data-step="0">
+        <div class="obCard">
+          <div class="obCardTitle">Track your month clearly</div>
+          <div class="obCardText">
+            Add income and expenses. We'll calculate your balance, highest spend, and category breakdown automatically.
+          </div>
+        </div>
+      </section>
+
+      <!-- Step 2 -->
+      <section class="obStep" data-step="1">
+        <label class="obLabel">What should we call you? <span class="obMuted">(optional)</span></label>
+        <input id="obName" class="input" type="text" maxlength="20" placeholder="e.g. Owen">
+
+        <div style="height:14px;"></div>
+
+        <label class="obLabel">Monthly savings goal <span class="obMuted">(optional)</span></label>
+        <input id="obGoal" class="input" type="number" min="0" step="1" placeholder="e.g. 60000">
+
+        <div class="obHint">You can change this anytime in the Savings Goal card.</div>
+      </section>
+
+      <!-- Step 3 -->
+      <section class="obStep" data-step="2">
+        <div class="obCard">
+          <div class="obCardTitle">Privacy-first</div>
+          <div class="obCardText">
+            Your data stays on this device unless you export it. Use Export/Import for backups.
+          </div>
+        </div>
+      </section>
+
+      <!-- Footer buttons -->
+      <div class="obFoot">
+        <button id="obBack" class="btn btnGhost" type="button" disabled>Back</button>
+        <div class="obFootRight">
+          <button id="obSkip" class="btn btnGhost" type="button">Skip</button>
+          <button id="obNext" class="btn" type="button">Next</button>
+        </div>
       </div>
     </div>
   </div>
