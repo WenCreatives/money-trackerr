@@ -1483,3 +1483,28 @@
     gap: 12px;
   }
 }
+
+/* ===== Make date input same size as others (iOS friendly) ===== */
+.input,
+.select,
+input[type="date"].input{
+  height: 48px;              /* consistent control height */
+  padding: 12px 12px;
+  border-radius: 14px;
+  line-height: 1.1;
+  box-sizing: border-box;
+}
+
+/* Fix iOS date input weird internal spacing */
+input[type="date"].input{
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+/* If you use a button for date display */
+button.input{
+  display:flex;
+  align-items:center;
+  justify-content:center;    /* your date is centered in the screenshot */
+  text-align:center;
+}
