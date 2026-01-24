@@ -1952,6 +1952,19 @@ function wireUI() {
     openTxModalForAdd();
   });
 
+  // Mobile FAB opens the same Add Transaction flow
+  document.getElementById("fabAddTx")?.addEventListener("click", () => {
+    $("#txDate").value = dateToday();
+    openTxModalForAdd();
+  });
+
+  // Toggle filters panel on mobile
+  const filterBtn = document.getElementById("filterToggleBtn");
+  const filtersPanel = document.getElementById("txFilters");
+  filterBtn?.addEventListener("click", () => {
+    filtersPanel?.classList.toggle("open");
+  });
+
   $("#quickIncomeBtn").addEventListener("click", () => {
     showTab("transactions");
     $("#txDate").value = dateToday();

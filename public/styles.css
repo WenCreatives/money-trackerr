@@ -1198,6 +1198,30 @@
   #monthPicker{ min-width: 150px; }
 }
 
+/* Mobile layout fixes for PWA */
+@media (max-width: 820px){
+  .topbar{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .welcome-block{
+    max-width: none;
+    width: 100%;
+  }
+
+  .monthRow{
+    flex-wrap: wrap;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  #monthPicker{
+    width: 100%;
+    min-width: 0;
+  }
+}
+
 /* Onboarding overlay */
 .obOverlay{
   position: fixed;
@@ -1333,4 +1357,129 @@
 .obFootRight{
   display:flex;
   gap: 10px;
+}
+
+/* ===== Floating Add Button (Mobile) ===== */
+.fabAdd{
+  position: fixed;
+  right: 16px;
+  bottom: 18px;
+  width: 56px;
+  height: 56px;
+  border-radius: 18px;
+  border: 1px solid rgba(255,255,255,0.10);
+  background: linear-gradient(135deg, rgba(8,248,80,.95), rgba(88,216,176,.9));
+  color: #07102d;
+  font-weight: 1000;
+  font-size: 28px;
+  line-height: 1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  box-shadow: 0 18px 40px rgba(0,0,0,.35);
+  cursor:pointer;
+  z-index: 9998;
+  transition: transform 0.12s ease;
+}
+
+.fabAdd:active{ transform: scale(0.98); }
+
+/* Only show FAB on mobile */
+@media (min-width: 901px){
+  .fabAdd{ display:none; }
+}
+
+/* Hide desktop Add button on mobile */
+@media (max-width: 900px){
+  #addTxBtn{ display: none; }
+}
+
+/* ===== Collapsible Filters (Mobile) ===== */
+.txTools{
+  display:flex;
+  gap:10px;
+  align-items:center;
+  margin-top: 12px;
+}
+
+.txTools .input{
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.txFiltersCollapsed{
+  margin-top: 12px;
+}
+
+/* Mobile: collapse by default */
+@media (max-width: 900px){
+  #txFilters{
+    display:none;
+  }
+  #txFilters.open{
+    display:block;
+  }
+
+  /* Make All/Income/Expense stay in one row */
+  .filters{
+    flex-wrap: nowrap;
+  }
+  .pill{
+    flex: 1 1 0;
+  }
+}
+
+/* ===== Mobile Header Improvements ===== */
+@media (max-width: 900px){
+  .welcome-block{
+    padding: 10px 12px;
+  }
+  .welcome-line{ font-size: 16px; }
+  .welcome-sub{ font-size: 12px; }
+
+  .monthRow{
+    gap: 8px;
+  }
+
+  /* Make the month picker slightly shorter */
+  .select, .input{
+    padding: 11px 12px;
+    border-radius: 14px;
+  }
+
+  /* ===== Mobile: de-congest the chart controls ===== */
+  /* This is the wrapper that currently holds: +Income +Expense Pie Bar */
+  .toggle{
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: center;
+  }
+
+  /* Make the first two buttons (Income/Expense) full-size */
+  .toggle #quickIncomeBtn,
+  .toggle #quickExpenseBtn{
+    width: 100%;
+    justify-content: center;
+    padding: 12px 12px;
+    border-radius: 14px;
+    font-size: 14px;
+  }
+
+  /* Make Pie/Bar look like "secondary mode" buttons */
+  .toggle #pieBtn,
+  .toggle #barBtn{
+    width: 100%;
+    justify-content: center;
+    padding: 10px 12px;
+    border-radius: 14px;
+    font-size: 13px;
+    opacity: 0.92;
+  }
+
+  /* Optional: reduce the header row spacing a bit */
+  .chartCard .rowBetween{
+    align-items: flex-start;
+    gap: 12px;
+  }
 }

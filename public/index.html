@@ -4,6 +4,12 @@
   <meta charset="utf-8"/>
   <meta name="viewport" content="width=device-width, initial-scale=1"/>
   <title>Monthly Money Tracker</title>
+  <link rel="manifest" href="./manifest.webmanifest">
+  <meta name="theme-color" content="#0b0e2a">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Monetzie">
+  <link rel="apple-touch-icon" href="./icons/icon-192.png">
   <link rel="stylesheet" href="./styles.css"/>
   <script src="./chart.umd.min.js"></script>
 </head>
@@ -196,22 +202,28 @@
             <button id="addTxBtn" class="btn">+ Add</button>
           </div>
 
-          <div class="filters">
-            <button class="pill active" data-filter="all">All</button>
-            <button class="pill" data-filter="income">Income</button>
-            <button class="pill" data-filter="expense">Expense</button>
+          <div class="txTools">
+            <input id="txSearch" class="input" placeholder="Search note or category…" style="flex:1; min-width:0;">
+            <button id="filterToggleBtn" class="btn btnGhost btnSmall" type="button">Filters</button>
           </div>
 
-          <div class="filters" style="flex-wrap:wrap; margin-top:12px;">
-            <input id="txSearch" class="input" placeholder="Search note or category…" style="flex:2; min-width:220px;">
-            <select id="txCatFilter" class="select" style="flex:1; min-width:180px;">
-              <option value="">All categories</option>
-            </select>
-            <input id="txMin" class="input" type="number" min="0" placeholder="Min" style="width:120px;">
-            <input id="txMax" class="input" type="number" min="0" placeholder="Max" style="width:120px;">
-            <input id="txFrom" class="input" type="date" style="width:160px;">
-            <input id="txTo" class="input" type="date" style="width:160px;">
-            <button id="txClearFilters" class="btn btnGhost btnSmall" type="button">Clear</button>
+          <div id="txFilters" class="txFiltersCollapsed">
+            <div class="filters">
+              <button class="pill active" data-filter="all">All</button>
+              <button class="pill" data-filter="income">Income</button>
+              <button class="pill" data-filter="expense">Expense</button>
+            </div>
+
+            <div class="filters" style="flex-wrap:wrap; margin-top:12px;">
+              <select id="txCatFilter" class="select" style="flex:1; min-width:180px;">
+                <option value="">All categories</option>
+              </select>
+              <input id="txMin" class="input" type="number" min="0" placeholder="Min" style="width:120px;">
+              <input id="txMax" class="input" type="number" min="0" placeholder="Max" style="width:120px;">
+              <input id="txFrom" class="input" type="date" style="width:160px;">
+              <input id="txTo" class="input" type="date" style="width:160px;">
+              <button id="txClearFilters" class="btn btnGhost btnSmall" type="button">Clear</button>
+            </div>
           </div>
 
           <div id="txList" class="list"></div>
@@ -603,6 +615,18 @@
     </div>
   </div>
 
+  <!-- Floating Add Button (Mobile) -->
+  <button id="fabAddTx" class="fabAdd" type="button" aria-label="Add transaction">
+    +
+  </button>
+
   <script src="./app.js"></script>
+  <script>
+    if ("serviceWorker" in navigator) {
+      window.addEventListener("load", () => {
+        navigator.serviceWorker.register("./sw.js").catch(console.error);
+      });
+    }
+  </script>
 </body>
 </html>
