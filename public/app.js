@@ -2416,46 +2416,56 @@ function wireUI() {
   $("#btnExportJson")?.addEventListener("click", exportMonthJSON);
   $("#btnExportCsv")?.addEventListener("click", exportMonthCSV);
 
-  // --- Export dropdown wiring ---
-  (function () {
-    const btn = document.getElementById("exportMenuBtn");
-    const panel = document.getElementById("exportMenu");
-    const jsonItem = document.getElementById("exportJsonItem");
-    const csvItem = document.getElementById("exportCsvItem");
+  // --- Backup dropdown wiring ---
+  (function setupBackupMenu() {
+    const menu = document.getElementById("backupMenu");
+    const btn = document.getElementById("backupMenuBtn");
+    const panel = document.getElementById("backupMenuPanel");
 
-    function openMenu() {
-      panel.classList.add("open");
-      btn.setAttribute("aria-expanded", "true");
-    }
+    if (!menu || !btn || !panel) return;
 
-    function closeMenu() {
-      panel.classList.remove("open");
-      btn.setAttribute("aria-expanded", "false");
-    }
+    const open = () => {
+      if (panel) {
+        panel.classList.add("open");
+        btn.setAttribute("aria-expanded", "true");
+      }
+    };
 
-    btn?.addEventListener("click", (e) => {
+    const close = () => {
+      if (panel) {
+        panel.classList.remove("open");
+        btn.setAttribute("aria-expanded", "false");
+      }
+    };
+
+    const toggle = () => {
+      if (panel) {
+        panel.classList.contains("open") ? close() : open();
+      }
+    };
+
+    btn.addEventListener("click", (e) => {
       e.stopPropagation();
-      panel.classList.contains("open") ? closeMenu() : openMenu();
+      toggle();
     });
 
-    jsonItem?.addEventListener("click", () => {
-      closeMenu();
-      exportMonthJSON();
+    // Close when clicking outside
+    document.addEventListener("click", (e) => {
+      if (menu && !menu.contains(e.target)) close();
     });
 
-    csvItem?.addEventListener("click", () => {
-      closeMenu();
-      exportMonthCSV();
-    });
-
-    // close on outside click / ESC
-    document.addEventListener("click", closeMenu);
+    // Close on ESC
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") closeMenu();
+      if (e.key === "Escape") close();
     });
 
-    // prevent panel clicks from closing instantly
-    panel?.addEventListener("click", (e) => e.stopPropagation());
+    // Close after clicking a menu item
+    if (panel) {
+      panel.addEventListener("click", (e) => {
+        const isItem = e.target && e.target.classList && e.target.classList.contains("menuItem");
+        if (isItem) close();
+      });
+    }
   })();
 
   $("#btnImportJson")?.addEventListener("click", () => $("#importJsonFile").click());

@@ -1548,3 +1548,50 @@ input[type="date"].input::-webkit-date-and-time-value,
 input[type="month"].input::-webkit-date-and-time-value{
   text-align: center;
 }
+
+/* ===== Topbar: clean layout (desktop + mobile) ===== */
+.monthRow{
+  flex: 1 1 auto;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  min-width: 0;
+}
+
+/* Month picker wrapper (keeps calendar icon + spacing) */
+.monthPickerWrap{
+  flex: 1 1 420px;
+  max-width: 560px;
+  min-width: 220px;
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+
+/* Right-side actions */
+.topActions{
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Mobile: stack controls to avoid congestion */
+@media (max-width: 900px){
+  .monthRow{
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .monthPickerWrap{
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+  }
+
+  .topActions{
+    width: 100%;
+    justify-content: flex-end;
+  }
+}
