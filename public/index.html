@@ -325,7 +325,7 @@
 
       <div class="small" style="margin-top:8px;">Choose a month (no overlaps — each month is independent).</div>
 
-      <form id="monthForm" class="form" style="grid-template-columns: 1fr auto; margin-top:12px;">
+      <form id="monthForm" class="form monthPickRow" style="margin-top:12px;">
         <input id="monthInput" class="input" type="month" required />
         <button class="btn" type="submit">Add</button>
       </form>
@@ -358,6 +358,10 @@
           </div>
         </div>
         <div id="applyRecurringList" class="list"></div>
+      </div>
+
+      <div id="recurringEmptyHint" class="small hint" style="margin-top:12px; display:none;">
+        No recurring templates yet — set them up in <b>Categories → Recurring</b>.
       </div>
 
       <div class="small hint">Tip: you can jump between months using the picker.</div>

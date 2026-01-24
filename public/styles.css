@@ -1508,3 +1508,43 @@ button.input{
   justify-content:center;    /* your date is centered in the screenshot */
   text-align:center;
 }
+
+/* ===== Add Month modal improvements ===== */
+/* Month picker + Add button alignment */
+.monthPickRow{
+  display: grid !important;
+  grid-template-columns: 1fr auto;
+  gap: 12px;
+  align-items: stretch;
+}
+
+.monthPickRow .input,
+.monthPickRow .btn{
+  min-height: 48px;
+}
+
+@media (max-width: 520px){
+  .monthPickRow{
+    grid-template-columns: 1fr !important;
+  }
+  .monthPickRow .btn{
+    width: 100%;
+  }
+}
+
+/* iOS date/month inputs often render taller/odd — normalize them */
+input[type="date"].input,
+input[type="month"].input{
+  -webkit-appearance: none;
+  appearance: none;
+  min-height: 48px;
+  line-height: 1.2;
+  padding: 12px 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Make the displayed date text align like other inputs (Safari/iOS) */
+input[type="date"].input::-webkit-date-and-time-value,
+input[type="month"].input::-webkit-date-and-time-value{
+  text-align: center;
+}

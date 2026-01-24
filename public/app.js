@@ -1316,6 +1316,7 @@ function setRecApplyFilter(mode){
 function renderApplyRecurringList() {
   const box = $("#applyRecurringBox");
   const el = $("#applyRecurringList");
+  const emptyHint = $("#recurringEmptyHint");
   if (!box || !el) return;
 
   let enabled = (state.recurringTemplates || []).filter(r => r.enabled);
@@ -1327,9 +1328,13 @@ function renderApplyRecurringList() {
   }
 
   const show = $("#applyRecurringCheck")?.checked;
+  const hasTemplates = (state.recurringTemplates || []).length > 0;
 
-  box.style.display = show ? "block" : "none";
-  if (!show) return;
+  // Show/hide recurring box and empty hint
+  if (box) box.style.display = (show && hasTemplates) ? "block" : "none";
+  if (emptyHint) emptyHint.style.display = (show && !hasTemplates) ? "block" : "none";
+  
+  if (!show || !hasTemplates) return;
 
   if (!enabled.length) {
     el.innerHTML = `<div class="small">No templates for this filter.</div>`;
