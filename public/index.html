@@ -16,7 +16,7 @@
 <body>
   <div class="app">
     <header class="topbar">
-      <!-- Welcome block -->
+      <!-- Welcome block - primary header -->
       <div class="welcome-block">
         <div class="welcome-texts">
           <div id="welcomeLine" class="welcome-line">Welcome back 👋</div>
@@ -28,36 +28,23 @@
         </button>
       </div>
 
-      <!-- Controls -->
       <div class="monthRow">
         <div class="monthPickerWrap">
           <select id="monthPicker" class="select"></select>
         </div>
+        <div class="menu">
+          <button id="exportMenuBtn" class="btn btnGhost btnSmall" type="button" aria-haspopup="true" aria-expanded="false">
+            Export ▾
+          </button>
 
-        <div class="topActions">
-          <!-- Backup dropdown -->
-          <div class="menu" id="backupMenu">
-            <button
-              id="backupMenuBtn"
-              class="btn btnGhost btnSmall"
-              type="button"
-              aria-haspopup="menu"
-              aria-expanded="false"
-            >
-              Backup ▾
-            </button>
-
-            <div id="backupMenuPanel" class="menuPanel" role="menu" aria-label="Backup options">
-              <button id="btnExportJson" class="menuItem" type="button" role="menuitem">Export JSON</button>
-              <button id="btnExportCsv" class="menuItem" type="button" role="menuitem">Export CSV</button>
-              <button id="btnImportJson" class="menuItem" type="button" role="menuitem">Import JSON</button>
-            </div>
+          <div id="exportMenu" class="menuPanel" role="menu">
+            <button id="exportJsonItem" class="menuItem" type="button" role="menuitem">Export JSON</button>
+            <button id="exportCsvItem" class="menuItem" type="button" role="menuitem">Export CSV</button>
           </div>
-
-          <button id="addMonthBtn" class="btn btnGhost btnSmall" type="button">+ Month</button>
         </div>
-
-        <input id="importJsonFile" type="file" accept="application/json" hidden>
+        <button id="btnImportJson" class="btn btnGhost btnSmall" type="button">Import JSON</button>
+        <input id="importJsonFile" type="file" accept="application/json" style="display:none;">
+        <button id="addMonthBtn" class="btn btnGhost">+ Month</button>
       </div>
     </header>
 

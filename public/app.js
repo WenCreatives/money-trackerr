@@ -2416,56 +2416,46 @@ function wireUI() {
   $("#btnExportJson")?.addEventListener("click", exportMonthJSON);
   $("#btnExportCsv")?.addEventListener("click", exportMonthCSV);
 
-  // --- Backup dropdown wiring ---
-  (function setupBackupMenu() {
-    const menu = document.getElementById("backupMenu");
-    const btn = document.getElementById("backupMenuBtn");
-    const panel = document.getElementById("backupMenuPanel");
+  // --- Export dropdown wiring ---
+  (function () {
+    const btn = document.getElementById("exportMenuBtn");
+    const panel = document.getElementById("exportMenu");
+    const jsonItem = document.getElementById("exportJsonItem");
+    const csvItem = document.getElementById("exportCsvItem");
 
-    if (!menu || !btn || !panel) return;
-
-    const open = () => {
-      if (panel) {
-        panel.classList.add("open");
-        btn.setAttribute("aria-expanded", "true");
-      }
-    };
-
-    const close = () => {
-      if (panel) {
-        panel.classList.remove("open");
-        btn.setAttribute("aria-expanded", "false");
-      }
-    };
-
-    const toggle = () => {
-      if (panel) {
-        panel.classList.contains("open") ? close() : open();
-      }
-    };
-
-    btn.addEventListener("click", (e) => {
-      e.stopPropagation();
-      toggle();
-    });
-
-    // Close when clicking outside
-    document.addEventListener("click", (e) => {
-      if (menu && !menu.contains(e.target)) close();
-    });
-
-    // Close on ESC
-    document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") close();
-    });
-
-    // Close after clicking a menu item
-    if (panel) {
-      panel.addEventListener("click", (e) => {
-        const isItem = e.target && e.target.classList && e.target.classList.contains("menuItem");
-        if (isItem) close();
-      });
+    function openMenu() {
+      panel.classList.add("open");
+      btn.setAttribute("aria-expanded", "true");
     }
+
+    function closeMenu() {
+      panel.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+    }
+
+    btn?.addEventListener("click", (e) => {
+      e.stopPropagation();
+      panel.classList.contains("open") ? closeMenu() : openMenu();
+    });
+
+    jsonItem?.addEventListener("click", () => {
+      closeMenu();
+      exportMonthJSON();
+    });
+
+    csvItem?.addEventListener("click", () => {
+      closeMenu();
+      exportMonthCSV();
+    });
+
+    // close on outside click / ESC
+    document.addEventListener("click", closeMenu);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") closeMenu();
+    });
+
+    // prevent panel clicks from closing instantly
+    panel?.addEventListener("click", (e) => e.stopPropagation());
   })();
 
   $("#btnImportJson")?.addEventListener("click", () => $("#importJsonFile").click());
